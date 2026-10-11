@@ -3,6 +3,7 @@ import { instructions } from "../instructions/main.Instructions.js";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { GeminiResponse } from "../Types.js";
 import { GoogleGenAI, Modality } from "@google/genai";
+import { extractJSON } from "../Parsers.js";
 import {
   GEMINI_API_Don_Acc,
   GEMINI_API_Main_Acc,
@@ -95,29 +96,17 @@ export const geminiAICall = async ({
     const messageContent = response.data.choices[0].message.content;
     let parsedContent;
     if (isJson) {
-      let cleanStr = messageContent.trim();
-      if (cleanStr.startsWith("```json")) {
-        cleanStr = cleanStr
-          .replace(/^```json/, "")
-          .replace(/```$/, "")
-          .trim();
-      } else if (cleanStr.startsWith("```")) {
-        cleanStr = cleanStr.replace(/^```/, "").replace(/```$/, "").trim();
-      }
       try {
-        parsedContent = JSON.parse(cleanStr);
-      } catch (parseError) {
-        // Attempt to extract JSON if there's trailing garbage
-        const match = cleanStr.match(/\{[\s\S]*\}/);
-        if (match) {
-          try {
-            parsedContent = JSON.parse(match[0]);
-          } catch (e) {
-            throw parseError;
-          }
-        } else {
-          throw parseError;
-        }
+        parsedContent = extractJSON(messageContent);
+      } catch {
+        parsedContent = null;
+      }
+      if (!parsedContent || typeof parsedContent !== "object") {
+        parsedContent = {
+          cmd: "",
+          msg: messageContent,
+          workingon: "",
+        };
       }
     } else {
       parsedContent = messageContent;
@@ -248,7 +237,8 @@ export const liveGeminiAICall = async ({
   });
 
   return new Promise(async (resolve) => {
-    let fullResponseText = "";
+    let modelTurnText = "";
+    let transcriptionText = "";
 
     try {
       const liveTargetModel = model || "gemini-3.8-live";
@@ -277,7 +267,7 @@ export const liveGeminiAICall = async ({
           onmessage: (message: any) => {
             // Collect text transcription if available
             if (message.serverContent?.outputTranscription?.text) {
-              fullResponseText +=
+              transcriptionText +=
                 message.serverContent.outputTranscription.text;
             }
 
@@ -285,7 +275,7 @@ export const liveGeminiAICall = async ({
             if (message.serverContent?.modelTurn?.parts) {
               for (const part of message.serverContent.modelTurn.parts) {
                 if (part.text) {
-                  fullResponseText += part.text;
+                  modelTurnText += part.text;
                 }
               }
             }
@@ -299,7 +289,10 @@ export const liveGeminiAICall = async ({
             console.error("[GEMINI LIVE] Error:", error);
           },
           onclose: async (event: any) => {
-            if (!fullResponseText.trim() && retryCount < maxKeys - 1) {
+            // Prioritize modelTurnText; fallback to audio transcription
+            const textToParse = modelTurnText.trim() || transcriptionText.trim();
+
+            if (!textToParse && retryCount < maxKeys - 1) {
               const nextKeyIndex = (safeKeyIndex + 1) % maxKeys;
               console.log(
                 `[GEMINI LIVE] Empty response / closed early (code ${event?.code}). Retrying with next key index ${nextKeyIndex}... (Attempt ${retryCount + 1}/${maxKeys})`,
@@ -318,47 +311,25 @@ export const liveGeminiAICall = async ({
 
             let parsedContent: any;
             if (isJson) {
-              let cleanStr = fullResponseText.trim();
-              if (cleanStr.startsWith("```json")) {
-                cleanStr = cleanStr
-                  .replace(/^```json/, "")
-                  .replace(/```$/, "")
-                  .trim();
-              } else if (cleanStr.startsWith("```")) {
-                cleanStr = cleanStr
-                  .replace(/^```/, "")
-                  .replace(/```$/, "")
-                  .trim();
-              }
               try {
-                parsedContent = JSON.parse(cleanStr);
-              } catch (parseError) {
-                const match = cleanStr.match(/\{[\s\S]*\}/);
-                if (match) {
-                  try {
-                    parsedContent = JSON.parse(match[0]);
-                  } catch (e) {
-                    parsedContent = {
-                      cmd: "",
-                      msg: fullResponseText,
-                      workingon: "",
-                    };
-                  }
-                } else {
-                  parsedContent = {
-                    cmd: "",
-                    msg: fullResponseText,
-                    workingon: "",
-                  };
-                }
+                parsedContent = extractJSON(textToParse);
+              } catch {
+                parsedContent = null;
+              }
+              if (!parsedContent || typeof parsedContent !== "object") {
+                parsedContent = {
+                  cmd: "",
+                  msg: textToParse,
+                  workingon: "",
+                };
               }
             } else {
-              parsedContent = fullResponseText;
+              parsedContent = textToParse;
             }
 
             resolve({
               content: parsedContent,
-              success: Boolean(fullResponseText.trim()),
+              success: Boolean(textToParse),
               usedKeyIndex: safeKeyIndex,
             });
           },

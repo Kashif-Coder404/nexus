@@ -149,28 +149,53 @@ export const callAI = async (
 
     // Fallback if primary call was unsuccessful
     if (!res || !res.success) {
-      console.warn("[GEMINI FALLBACK] Retrying with stable Gemini API...");
-      try {
-        res = await geminiAICall({
-          chatMessages,
-          model: "gemini-3.7-flash",
-          instructionString: instructions,
-          retryCount: params.retryCount || 0,
-          isJson: isJson,
-          keyIndex: geminiKeyIndex,
-        });
-      } catch (fallbackErr: any) {
-        console.error(
-          "[GEMINI FALLBACK ERROR]:",
-          fallbackErr?.message || fallbackErr,
+      // 1. Try Gemini 3.8 Live first (if not already tried as the primary call)
+      if (!params.isLiveModel && params.model !== "gemini-3.8-live") {
+        console.warn("[GEMINI FALLBACK] Retrying with Gemini 3.8 Live...");
+        try {
+          res = await liveGeminiAICall({
+            chatMessages,
+            model: "gemini-3.8-live",
+            instructionString: instructions,
+            retryCount: params.retryCount || 0,
+            isJson: isJson,
+            keyIndex: geminiKeyIndex,
+          });
+        } catch (liveErr: any) {
+          console.warn(
+            "[GEMINI LIVE FALLBACK ERROR]:",
+            liveErr?.message || liveErr,
+          );
+        }
+      }
+
+      // 2. If still unsuccessful, fallback to stable Gemini 3.6 Flash
+      if (!res || !res.success) {
+        console.warn(
+          "[GEMINI FALLBACK] Retrying with stable Gemini 3.6 Flash API...",
         );
-        res = {
-          success: false,
-          content: {
-            msg:
-              fallbackErr?.message || "AI failed to respond. Please try again.",
-          },
-        } as GeminiResponse;
+        try {
+          res = await geminiAICall({
+            chatMessages,
+            model: "gemini-3.6-flash",
+            instructionString: instructions,
+            retryCount: params.retryCount || 0,
+            isJson: isJson,
+            keyIndex: geminiKeyIndex,
+          });
+        } catch (fallbackErr: any) {
+          console.error(
+            "[GEMINI FALLBACK ERROR]:",
+            fallbackErr?.message || fallbackErr,
+          );
+          res = {
+            success: false,
+            content: {
+              msg:
+                fallbackErr?.message || "AI failed to respond. Please try again.",
+            },
+          } as GeminiResponse;
+        }
       }
     }
 

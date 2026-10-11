@@ -22,13 +22,21 @@ import {
 } from "./Types/ParserTypes.js";
 
 export function extractJSON(text: string): any {
-  const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    let jsonStr = text.substring(firstBrace, lastBrace + 1);
+  if (!text || typeof text !== "string") return null;
 
+  let cleanText = text.trim();
+  if (cleanText.startsWith("```json")) {
+    cleanText = cleanText
+      .replace(/^```json/i, "")
+      .replace(/```$/i, "")
+      .trim();
+  } else if (cleanText.startsWith("```")) {
+    cleanText = cleanText.replace(/^```/i, "").replace(/```$/i, "").trim();
+  }
+
+  const tryParse = (raw: string): any => {
     // 1. Strip out bad control characters (raw newlines, tabs) that break JSON.parse inside string literals
-    jsonStr = jsonStr.replace(/[\x00-\x1F]+/g, " ");
+    let jsonStr = raw.replace(/[\x00-\x1F]+/g, " ");
 
     // Auto-escape unescaped backslashes (frequent issue with Windows paths from AI)
     jsonStr = jsonStr.replace(/(?<!\\)\\(?![\\"/bfnrtu])/g, "\\\\");
@@ -36,15 +44,44 @@ export function extractJSON(text: string): any {
     try {
       return JSON.parse(jsonStr);
     } catch (e) {
-      // 2. Attempt to auto-fix missing commas between fields (e.g. before "msg":)
+      // 2. Attempt to auto-fix missing commas between fields (e.g. before "msg": or "cmd":)
       try {
-        jsonStr = jsonStr.replace(/"\s*(?="msg"\s*:|"cmd"\s*:)/g, '",');
-        return JSON.parse(jsonStr);
-      } catch (e2) {
-        console.warn(
-          "Found JSON-like structure but failed to parse even after auto-fix:",
-          e2,
+        const fixed = jsonStr.replace(
+          /"\s*(?="msg"\s*:|"cmd"\s*:|"workingon"\s*:)/g,
+          '",',
         );
+        return JSON.parse(fixed);
+      } catch {
+        return null;
+      }
+    }
+  };
+
+  // Try direct parse first
+  const direct = tryParse(cleanText);
+  if (direct && typeof direct === "object") return direct;
+
+  const firstBrace = cleanText.indexOf("{");
+  const lastBrace = cleanText.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    // Try the outermost brace pair
+    const fullSpan = cleanText.substring(firstBrace, lastBrace + 1);
+    const parsedFull = tryParse(fullSpan);
+    if (parsedFull && typeof parsedFull === "object") return parsedFull;
+
+    // If full span failed, check if there's a clean trailing '{"cmd"' or '{"action"' block
+    // (Addresses cases where AI emitted a broken preamble chunk before the valid JSON object)
+    const lastCmdIndex = cleanText.lastIndexOf('"cmd"');
+    if (lastCmdIndex !== -1) {
+      const candidateBrace = cleanText.lastIndexOf("{", lastCmdIndex);
+      if (candidateBrace !== -1 && candidateBrace > firstBrace) {
+        const candidateSpan = cleanText.substring(
+          candidateBrace,
+          lastBrace + 1,
+        );
+        const parsedCandidate = tryParse(candidateSpan);
+        if (parsedCandidate && typeof parsedCandidate === "object")
+          return parsedCandidate;
       }
     }
   }
@@ -53,7 +90,7 @@ export function extractJSON(text: string): any {
   let fallbackMsg: string | undefined = undefined;
   let fallbackCmd: string | undefined = undefined;
 
-  const msgMatch = text.match(/"msg"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/);
+  const msgMatch = cleanText.match(/"msg"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/);
   if (msgMatch) {
     try {
       fallbackMsg = JSON.parse('"' + msgMatch[1] + '"');
@@ -62,7 +99,7 @@ export function extractJSON(text: string): any {
     }
   }
 
-  const cmdMatch = text.match(/"cmd"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/);
+  const cmdMatch = cleanText.match(/"cmd"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/);
   if (cmdMatch) {
     try {
       fallbackCmd = JSON.parse('"' + cmdMatch[1] + '"');

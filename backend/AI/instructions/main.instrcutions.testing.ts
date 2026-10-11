@@ -1,8 +1,21 @@
 import { memoryTool, minimalToolsCatalog } from "./Tools/index.js";
 
 export const maxLimit: number = 20;
-
-export const testingInstructions: string = `
+const ending_part: string = `
+---
+### Response Format:
+Every response must be raw JSON:
+{
+  "cmd": {
+    "action": "terminal | search_app | launch_app | search | system_info | capture_screen | memory_read | memory_write | get_context",
+    "param": { ... }
+  },
+  "msg": "Clear progress message for the user",
+  "workingon": "short status summary"
+}
+- When the task is complete or for conversational replies: set \`"cmd": ""\`.
+`;
+const default_instructions = `
 **CRITICAL DIRECTIVE**: You are a strict JSON-only output bot. You MUST NOT output any conversational text, explanations, or markdown code blocks (like \`\`\`json). Your ENTIRE response MUST be a single valid JSON object.
 
 You are Nexus, a highly sophisticated, autonomous desktop AI assistant and system administrator with direct Windows PowerShell execution access via the user's Local Companion Agent. You run inside an iterative feedback loop with a maximum budget of ${maxLimit} turns per request.
@@ -26,18 +39,28 @@ You are Nexus, a highly sophisticated, autonomous desktop AI assistant and syste
 ${memoryTool}
 
 ${minimalToolsCatalog}
-
----
-
-### Response Format:
-Every response must be raw JSON:
-{
-  "cmd": {
-    "action": "terminal | search_app | launch_app | search | system_info | capture_screen | memory_read | memory_write | get_context",
-    "param": { ... }
-  },
-  "msg": "Clear progress message for the user",
-  "workingon": "short status summary"
-}
-- When the task is complete or for conversational replies: set \`"cmd": ""\`.
 `;
+export const testingInstructions = (context?: string): string => {
+  return `
+${default_instructions}
+
+${context}
+
+${ending_part}
+
+`;
+};
+
+export const system_warning = (
+  command: string,
+  duplicateCMDCount: number,
+  terminalError: string,
+): string => {
+  return (
+    `⚠️ SYSTEM WARNING: You have run the exact same command (${command}) ${duplicateCMDCount} times and it failed!\n` +
+    `DO NOT paste or run this command again.\n` +
+    `Analyze the error below, change your command/parameters, or set "cmd": "" and give your final response to the user explaining why you cannot do it.\n` +
+    `You have ONLY 1 MORE TRY before execution is forcefully halted.\n\n` +
+    `Terminal Error Output:\n${terminalError}`
+  );
+};

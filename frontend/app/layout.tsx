@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import DownloadAlertModal from "./components/DownloadAlertModal";
-import { Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
-const font = Space_Grotesk({
+import { Inter } from "next/font/google";
+const font = Inter({
   weight: ["300", "400", "500", "600", "700"],
   subsets: ["latin"],
   variable: "--font-sans",
