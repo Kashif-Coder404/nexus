@@ -1,16 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
-import {
-  GEMINI_API_Don_Acc,
-  GEMINI_API_Main_Acc,
-  initializeKeys,
-} from "../../EnvVariables.js";
+import { GEMINI_API_Main_Acc } from "../../EnvVariables.js";
+import { GEMINI_API_KEYS } from "../Providers/geminiAI.js";
 import { ChatMessageType } from "../Types.js";
 import { imageInstructions } from "../instructions/image.instructions.js";
 import { captureScreen } from "../../tools/takeScreenShot.js";
-
-const GEMINI_API_KEYS = [GEMINI_API_Don_Acc, GEMINI_API_Main_Acc].filter(
-  Boolean,
-) as string[];
 
 export const imageCheck = async (): Promise<{
   success: boolean;

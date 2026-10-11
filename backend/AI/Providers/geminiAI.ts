@@ -5,14 +5,26 @@ import { GeminiResponse } from "../Types.js";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { extractJSON } from "../Parsers.js";
 import {
+  GEMINI_API_BGMI15,
   GEMINI_API_Don_Acc,
   GEMINI_API_Main_Acc,
+  GEMINI_API_MYLIFE,
+  GEMINI_API_K69,
+  GEMINI_API_COLLGEWISE,
+  GEMINI_API_DIALYUI,
   initializeKeys,
 } from "../../EnvVariables.js";
 await initializeKeys();
-const GEMINI_API_KEYS = [GEMINI_API_Don_Acc, GEMINI_API_Main_Acc].filter(
-  Boolean,
-) as string[];
+export const GEMINI_API_KEYS = [
+  GEMINI_API_Main_Acc,
+  GEMINI_API_Don_Acc,
+  GEMINI_API_BGMI15,
+  GEMINI_API_MYLIFE,
+  GEMINI_API_K69,
+  GEMINI_API_COLLGEWISE,
+  GEMINI_API_DIALYUI,
+].filter(Boolean) as string[];
+
 export type GeminiModelsTypes =
   | "gemini-3.7-flash"
   | "gemini-3.6-flash"
@@ -290,7 +302,8 @@ export const liveGeminiAICall = async ({
           },
           onclose: async (event: any) => {
             // Prioritize modelTurnText; fallback to audio transcription
-            const textToParse = modelTurnText.trim() || transcriptionText.trim();
+            const textToParse =
+              modelTurnText.trim() || transcriptionText.trim();
 
             if (!textToParse && retryCount < maxKeys - 1) {
               const nextKeyIndex = (safeKeyIndex + 1) % maxKeys;
