@@ -235,11 +235,13 @@ const AIMsgBox = ({
         {/* AI message bubble */}
         <div
           ref={msgRef}
-          className="my-2 text-xl leading-7 text-zinc-100  wrap-break-word overflow-hidden"
+          className="my-2 text-xl leading-7 text-zinc-100 overflow-hidden"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {String(displayedContent)}
-          </ReactMarkdown>
+          <pre className="whitespace-pre-wrap">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {String(displayedContent)}
+            </ReactMarkdown>
+          </pre>
         </div>
 
         {/* Execution steps */}

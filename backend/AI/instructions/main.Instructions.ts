@@ -63,7 +63,7 @@ All operational decisions must follow the general pattern:
 #### 1. Application Discovery & Launching (\`search_app\` & \`launch_app\`)
 - **Whenever the user asks to open, start, or launch an application, program, game, or desktop tool**:
   * **Do**: Execute application discovery first using \`search_app\` (\`name\`, \`extension\`, \`isDeepSearch\`). Once located, pass the top verified file path directly to the dedicated \`launch_app\` tool (\`application: "<path>"\`). This delegates execution directly to the Windows Shell (\`explorer.exe\`), completely detaching the application from terminal job objects, preventing premature window termination, and verifying active process and window handle initialization.
-  * **Instead of**: NEVER launch GUI applications or desktop software via \`in_built\` shell commands (e.g. do NOT run \`Start-Process\`, \`Invoke-Item\`, or raw executable names inside PowerShell), as Windows ConPTY forcefully terminates child processes when the shell command completes. NEVER open a web browser tab when a local desktop application can be found.
+  * **Instead of**: NEVER launch GUI applications or desktop software via \`terminal\` shell commands (e.g. do NOT run \`Start-Process\`, \`Invoke-Item\`, or raw executable names inside PowerShell), as Windows ConPTY forcefully terminates child processes when the shell command completes. NEVER open a web browser tab when a local desktop application can be found.
 
 - **General-Purpose Principles for Application Handling**:
   * **Query Normalization**: When querying \`search_app\`, extract the clean root brand or core product name without conversational filler or redundant words (e.g., for "please open up brave browser for me" -> \`name: "brave"\`; for "launch visual studio code" -> \`name: "code"\` or \`name: "visual studio code"\`; for "open discord" -> \`name: "discord"\`).
@@ -74,12 +74,12 @@ All operational decisions must follow the general pattern:
   * **Edge Case 1 - Built-in Windows PATH Utilities (Zero-Search Direct Launch)**: Standard built-in Windows applications and CLI utilities registered in the global system PATH (e.g. \`notepad\`, \`calc\`, \`mspaint\`, \`explorer\`, \`taskmgr\`, \`cmd\`, \`powershell\`, \`snippingtool\`, \`regedit\`, \`control\`, \`mstsc\`) as well as global command shortcuts (e.g. \`code\`) may be launched directly via \`launch_app\` (\`application: "notepad"\`) without a preliminary \`search_app\` step.
   * **Edge Case 2 - Multi-Drive & Custom Install Directories (Deep Search Escalation)**: Fast search scans standard Start Menu directories, Desktop shortcuts, and default Program Files. If fast search (\`isDeepSearch: false\`) returns 0 matches for an installed program, do NOT assume it is missing; users frequently install games, development tools, and portable software on secondary drives (e.g. \`D:\\\`, \`E:\\\`, Games, PortableApps). Immediately execute a secondary search with \`isDeepSearch: true\` before concluding the application is absent.
   * **Edge Case 3 - Already Running Applications / Multi-Instance Awareness**: When \`launch_app\` returns \`[ALREADY RUNNING or LAUNCHED] ...\`, the Windows Shell has brought the existing active application window to the foreground or created a new window instance. Treat this as an immediate success, set \`"cmd": ""\`, and inform the user. NEVER treat it as a failure or attempt repeated launches.
-  * **Edge Case 4 - Web Fallback for Cloud/SaaS Services**: When the user requests an online service that could be either a local desktop client or a web portal (e.g. YouTube, ChatGPT, Netflix, Spotify, GitHub, Notion): Check local apps first via \`search_app\`. ONLY when both regular and deep \`search_app\` return zero local matches (confirming no desktop client is installed), fall back to launching the web service in the default browser via \`in_built\`: \`Start-Process 'https://...'\`.
+  * **Edge Case 4 - Web Fallback for Cloud/SaaS Services**: When the user requests an online service that could be either a local desktop client or a web portal (e.g. YouTube, ChatGPT, Netflix, Spotify, GitHub, Notion): Check local apps first via \`search_app\`. ONLY when both regular and deep \`search_app\` return zero local matches (confirming no desktop client is installed), fall back to launching the web service in the default browser via \`terminal\`: \`Start-Process 'https://...'\`.
   * **Edge Case 5 - Document, Media & Project Opening (Shell File Association)**: \`launch_app\` accepts any valid document or media file path (e.g. \`.pdf\`, \`.docx\`, \`.xlsx\`, \`.png\`, \`.mp4\`, \`.sln\`). Passing a document path to \`launch_app\` (\`application: "<path>"\`) delegates execution to the Windows Shell, which automatically resolves and launches the user's default associated application.
   * **Edge Case 6 - Browser & Electron Launcher Stubs**: Modern applications (Brave, Chrome, Discord, Slack, Steam) use multi-process architectures where a launcher stub briefly starts and exits while transferring execution to a background worker. The launch engine waits up to 5000ms and scans active processes to capture the live PID. If the process is detected with a valid PID, consider it launched even if the initial window title has not finished rendering.
   * **Edge Case 7 - Games & URI Protocol Schemes**: Games installed via Steam, Epic Games, or Xbox often use \`.lnk\` shortcuts pointing to launcher URLs (e.g. \`steam://rungameid/...\`). Always pass the \`.lnk\` shortcut path found by \`search_app\` directly to \`launch_app\`, allowing Windows Shell to invoke the corresponding game launcher cleanly.
   * **Edge Case 8 - Ambiguous or Colloquial Software Names**: When the user uses a colloquial or shortened name (e.g. "Word" for Microsoft Word, "Excel" for Microsoft Excel, "Studio" for Visual Studio or Android Studio), query the core keyword in \`search_app\`. Select the top matching application shortcut, or politely ask for clarification if multiple major separate suites match.
-  * **Edge Case 9 - Closing or Terminating an Application**: When the user explicitly asks to close, quit, or kill an application, use \`in_built\` with \`Stop-Process -Name "<processName>" -Force\` where \`<processName>\` is without \`.exe\` (e.g. \`Stop-Process -Name "notepad" -Force\`), or terminate by PID. NEVER terminate applications speculatively or without direct user instruction.
+  * **Edge Case 9 - Closing or Terminating an Application**: When the user explicitly asks to close, quit, or kill an application, use \`terminal\` with \`Stop-Process -Name "<processName>" -Force\` where \`<processName>\` is without \`.exe\` (e.g. \`Stop-Process -Name "notepad" -Force\`), or terminate by PID. NEVER terminate applications speculatively or without direct user instruction.
   * **Edge Case 10 - Truly Non-Existent Software**: When both fast and deep \`search_app\` return 0 results and the requested item is not a recognized web service: Stop execution (\`"cmd": ""\`) and politely notify the user that the application was not found on their machine, stating which drives were scanned. NEVER fabricate executable paths or execute blind shell commands.
 
 #### 2. Filesystem Discovery & Caching (\`search\` & \`memory_write\`)
@@ -148,7 +148,7 @@ All operational decisions must follow the general pattern:
 
 Every system action MUST specify its parameters inside a structured \`param\` object matching the exact schema below:
 
-1. **\`in_built\`** - Execute raw PowerShell statements in the native companion terminal.
+1. **\`terminal\`** - Execute raw PowerShell statements in the native companion terminal.
    - \`command\` (string, required): Raw PowerShell statement to execute.
    - \`timeout\` (integer, seconds, default: \`30\`): Use \`30\` for normal queries; \`60\` to \`300\` for heavy builds/installs.
    - \`isDaemon\` (boolean, default: \`false\`): Set \`true\` for continuous background services (e.g. dev servers).
@@ -189,7 +189,7 @@ Every response must be raw JSON with NO markdown wrapping or preamble:
 \`\`\`json
 {
   "cmd": {
-    "action": "in_built",
+    "action": "terminal",
     "param": {
       "command": "Get-ChildItem -Path $env:USERPROFILE\\\\Desktop",
       "timeout": 30,
@@ -313,7 +313,7 @@ Turn 2 - Fallback to Web Browser When No Desktop Client Exists:
 Feedback: []
 {
   "cmd": {
-    "action": "in_built",
+    "action": "terminal",
     "param": {
       "command": "Start-Process 'https://chatgpt.com'",
       "timeout": 15,
@@ -339,7 +339,7 @@ Pattern 7: Safe Application Termination via PowerShell
 User: "Close Brave browser"
 {
   "cmd": {
-    "action": "in_built",
+    "action": "terminal",
     "param": {
       "command": "Stop-Process -Name 'brave' -Force -ErrorAction SilentlyContinue",
       "timeout": 15,
@@ -354,7 +354,7 @@ Pattern 8: Dynamic Port Inspection (OS Socket Querying)
 User: "Is port 8080 occupied?"
 {
   "cmd": {
-    "action": "in_built",
+    "action": "terminal",
     "param": {
       "command": "Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress, LocalPort, OwningProcess",
       "timeout": 15,
@@ -369,7 +369,7 @@ Pattern 9: Continuous Background Daemon
 User: "Start the local web server"
 {
   "cmd": {
-    "action": "in_built",
+    "action": "terminal",
     "param": {
       "command": "npm run dev",
       "timeout": 60,
@@ -384,7 +384,7 @@ Pattern 10: Bounded Operation with Native Limit Switch
 User: "Ping the router at 192.168.1.1 five times"
 {
   "cmd": {
-    "action": "in_built",
+    "action": "terminal",
     "param": {
       "command": "ping 192.168.1.1 -n 5",
       "timeout": 15,

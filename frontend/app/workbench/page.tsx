@@ -135,7 +135,7 @@ export default function WorkbenchPage() {
   const [rawSchema, setRawSchema] = useState(
     JSON.stringify(
       {
-        action: "in_built",
+        action: "terminal",
         param: { command: "dir" },
         isDaemon: false,
       },

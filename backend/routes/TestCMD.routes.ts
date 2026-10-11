@@ -12,12 +12,12 @@ const testCMD = async (req: any, res: any) => {
 
   if (typeof cmdPayload === "string") {
     cmdPayload = {
-      action: "in_built",
+      action: "terminal",
       param: { command: cmdPayload },
     };
   } else if (cmdPayload.command && !cmdPayload.action) {
     cmdPayload = {
-      action: "in_built",
+      action: "terminal",
       param: cmdPayload,
     };
   }

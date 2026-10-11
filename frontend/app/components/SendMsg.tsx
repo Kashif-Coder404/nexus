@@ -25,14 +25,14 @@ export type ModelType = {
 const Models: ModelType[] = [
   {
     provider: "gemini",
-    name: "gemini-3.7-flash",
-    displayName: "Nexus (Smart)",
+    name: "gemini-3.6-flash",
+    displayName: "Nexus (Stable)",
     isLiveModel: false,
   },
   {
     provider: "gemini",
-    name: "gemini-3.6-flash",
-    displayName: "Nexus (Stable)",
+    name: "gemini-3.7-flash",
+    displayName: "Nexus (Smart)",
     isLiveModel: false,
   },
   {

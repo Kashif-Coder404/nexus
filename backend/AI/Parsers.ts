@@ -340,7 +340,7 @@ export const commandParser = async (
         finalResponse.isSuccess = false;
       }
     },
-    in_built: async () => {
+    terminal: async () => {
       let commandPayload: any;
       let timeoutMs = 30000;
 
@@ -457,6 +457,10 @@ export const commandParser = async (
         finalResponse.isSuccess = false;
       }
     },
+    in_built: async () => {
+      // Backward compatibility alias for terminal
+      await (commandHandlerDict as any).terminal();
+    },
   };
 
   let matchedKey: string = cmd.action;
@@ -472,15 +476,15 @@ export const commandParser = async (
 
     if (isShellCmd) {
       console.warn(
-        `[PARSER] Auto-correcting shell action "${matchedKey}" to "in_built"`,
+        `[PARSER] Auto-correcting shell action "${matchedKey}" to "terminal"`,
       );
       const combinedParam = cmd.param
         ? `${matchedKey} ${typeof cmd.param === "string" ? cmd.param : JSON.stringify(cmd.param)}`
         : matchedKey;
       (cmd as any).param = combinedParam;
-      (cmd as any).action = "in_built";
+      (cmd as any).action = "terminal";
       returningCmd = JSON.stringify(cmd);
-      matchedKey = "in_built";
+      matchedKey = "terminal";
     }
   }
 

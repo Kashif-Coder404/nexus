@@ -5,11 +5,13 @@ import {
   sendToUser,
 } from "../services/websocket/websocket.service.js";
 import { callAI, ModelType } from "./CallAI.js";
+import { testingInstructions } from "./instructions/main.instrcutions.testing.js";
 
 import {
   instructions,
   system_warning,
 } from "./instructions/main.Instructions.js";
+import { get_context } from "./instructions/Tools/contextRegistry.js";
 import { commandParser } from "./Parsers.js";
 import { ChatMessageType } from "./Types.js";
 import { CommandExecutionType } from "./Types/AIResponseTypes.js";
@@ -21,7 +23,7 @@ import {
 export class AskAI {
   public static activeRunners = new Map<string, AskAI>();
   private isAborted = false;
-
+  private systemInstructions = testingInstructions;
   public abort() {
     activeSessions.delete(this.sessionId);
     this.isAborted = true;
@@ -151,7 +153,7 @@ export class AskAI {
       return `🔍 Searching files for "${param?.expected_name || ""}"...`;
     } else if (action === "search_app") {
       return `🚀 Searching for app "${param?.name || ""}"...`;
-    } else if (action === "in_built") {
+    } else if (action === "terminal" || action === "in_built") {
       const cmdText =
         typeof param === "object" && param !== null
           ? param.command || JSON.stringify(param)
@@ -197,17 +199,68 @@ export class AskAI {
       ];
       this.BroadCastTheState();
       console.log("MODEL USE: ", this.model);
+      console.log("INSTRUCTIONS LENGTH: ", this.systemInstructions.length);
       this.aiResponse = await callAI(this.model.provider, {
         userId: this.userId,
         chatMessages: ChatMsgs,
         session: this.sessionId,
-        instructions,
+        instructions: this.systemInstructions,
         isJson: true,
         isLiveModel: this.model.isLiveModel,
         retryCount: 0,
         model: this.model.name,
       });
       const { cmd, workingon, msg, success } = this.aiResponse;
+      let action = "";
+      let param: any = null;
+      if (typeof cmd === "object" && cmd !== null) {
+        action = cmd.action || "";
+        param = cmd.param;
+      } else if (typeof cmd === "string" && cmd.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(cmd);
+          action = parsed.action || "";
+          param = parsed.param;
+        } catch {
+          action = "";
+        }
+      }
+      if (action === "get_context") {
+        const targetName =
+          typeof cmd.param === "object" ? cmd.param?.name : cmd.param;
+        const flagName = (targetName || "").toUpperCase().trim();
+        const manual = get_context(targetName);
+        if (!manual.success) {
+          this.commandRunningMsgs.push({
+            role: "user",
+            content: manual.error || "Failed to retrieve context",
+          });
+          continue;
+        }
+        if (
+          this.systemInstructions.includes(
+            `[FULL CONTEXT ABOUT ${flagName} END]`,
+          )
+        ) {
+          this.commandRunningMsgs.push({
+            role: "user",
+            content: `The full instructions for "${targetName}" are ALREADY loaded in your prompt above. Do not call get_context again. Proceed to execute the command directly.`,
+          });
+          continue;
+        }
+        const wrappedManualString: string = `
+          [FULL CONTEXT ABOUT ${flagName} START]
+          ${manual.context}
+          [FULL CONTEXT ABOUT ${flagName} END]
+        `;
+        // 1. Silently append manual to system instructions for future turns
+        this.systemInstructions += `\n${wrappedManualString}`;
+
+        //AI retries with the full context about the get_context
+
+        continue;
+      }
+
       this.BroadCastTheState(workingon, msg, cmd);
       this.commandRunningMsgs.push({
         role: "assistant",

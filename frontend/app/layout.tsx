@@ -3,7 +3,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import DownloadAlertModal from "./components/DownloadAlertModal";
 import { Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
-const font = Plus_Jakarta_Sans({
+const font = Space_Grotesk({
   weight: ["300", "400", "500", "600", "700"],
   subsets: ["latin"],
   variable: "--font-sans",

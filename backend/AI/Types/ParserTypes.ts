@@ -18,7 +18,8 @@ export interface InBuiltParam {
 
 export type MatchKeyType = keyof ActionTypes;
 export interface ActionTypes {
-  in_built: InBuiltParam | string; // AI MUST USE IT TO CALL REAL COMMANDS
+  terminal: InBuiltParam | string; // AI MUST USE IT TO CALL REAL COMMANDS
+  in_built?: InBuiltParam | string; // Backward compatibility alias
   memory_read: { alias?: string; category?: string };
   memory_write: { alias: string; value: string; category: string };
   memory_delete: { value: string; alias?: string; category?: string };
