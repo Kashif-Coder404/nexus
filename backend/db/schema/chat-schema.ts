@@ -72,7 +72,7 @@ const ChatMessageSchema: Schema = new Schema(
       type: [CommandExecutionSchema],
       default: [],
     },
-    imageBase64: {
+    image: {
       type: String,
     },
     workedSeconds: {

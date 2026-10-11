@@ -18,7 +18,7 @@ export interface ExecutionStep {
   terminalError?: string;
   duration?: string;
   cwd?: string;
-  imageBase64?: string;
+  image?: string;
 }
 
 export interface AiData {
@@ -166,15 +166,16 @@ const AIMsgBox = ({
       ? parsedContentObj.executions
       : [];
   const capturedImages = executions
-    .filter((step) => step.imageBase64)
+    .filter((step) => step.image)
     .map((step) => {
-      if (step.imageBase64)
-        return {
-          step: step.steps,
-          src: step.imageBase64.startsWith("data:")
-            ? step.imageBase64
-            : `data:image/png;base64,${step.imageBase64}`,
-        };
+      const imgVal = step.image || "";
+      return {
+        step: step.steps,
+        src:
+          imgVal.startsWith("data:") || imgVal.startsWith("http")
+            ? imgVal
+            : `data:image/png;base64,${imgVal}`,
+      };
     });
 
   useEffect(() => {

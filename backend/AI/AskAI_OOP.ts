@@ -1,5 +1,6 @@
 import { SessionModel } from "../db/schema/session-schema.js";
 import { getChat, setChat } from "../services/chat.history.service.js";
+import { uploadScreenshotToCloudinary } from "../services/claudinary.service.js";
 import {
   activeSessions,
   sendToUser,
@@ -85,14 +86,13 @@ export class AskAI {
           .slice(-40)
           .join("\n") + " [Last 40 Lines]",
       success: execution.isSuccess + `(${execution.exitCode})`,
+      image:
+        execution.image || (execution as any).imageBase64
+          ? "[IMAGE]"
+          : "[NO IMAGE]",
     }));
-    const imageBase64 =
-      message.imageBase64 && message.imageBase64.length > 0
-        ? "[Image Present]"
-        : "[No Image]";
     return JSON.stringify({
       msg: message.content,
-      imageBase64: imageBase64,
       executions: reducedExecutions,
     });
   }
@@ -336,8 +336,14 @@ export class AskAI {
       (commandOutput as any)?.cwd ||
       (typeof params === "object" && (params as any)?.cwd) ||
       "";
+    let stepImageUrl = "";
     if (commandOutput.imageBase64) {
-      this.capturedImage = commandOutput.imageBase64;
+      const uploadedUrl = await uploadScreenshotToCloudinary(
+        commandOutput.imageBase64,
+      );
+      this.capturedImage = uploadedUrl;
+      stepImageUrl = uploadedUrl;
+      commandOutput.imageBase64 = "";
     }
     const RawOutput = commandOutput.terminalOutput || "";
     const RawError = commandOutput.terminalError || "";
@@ -350,7 +356,7 @@ export class AskAI {
     this.terminalError =
       "[Last 40 Lines]\n" + CleanedError + "\n[End of Last 40 Lines]";
 
-    const StepExecution = {
+    const StepExecution: CommandExecutionType = {
       steps: this.executions.length + 1,
       cmd: {
         action: action,
@@ -363,7 +369,7 @@ export class AskAI {
       exitCode: commandOutput.exitCode?.toString() || "",
       duration: stepDuration,
       cwd: currentCwd,
-      imageBase64: commandOutput.imageBase64 || "",
+      image: stepImageUrl,
     };
     this.executions.push(StepExecution); // Push to exections to show in the Frontend + Save to DB
     const actionDesc = this.ExplainAction(action, params);
@@ -419,7 +425,6 @@ export class AskAI {
         role: "assistant",
         content: finalMsg,
         executions: this.executions || [],
-        imageBase64: this.capturedImage,
         workedSeconds: totalWorkedSeconds,
       },
     ];

@@ -1,9 +1,16 @@
-import { geminiAICall } from "../Providers/geminiAI.js";
+import { GoogleGenAI } from "@google/genai";
+import {
+  GEMINI_API_Don_Acc,
+  GEMINI_API_Main_Acc,
+  initializeKeys,
+} from "../../EnvVariables.js";
 import { ChatMessageType } from "../Types.js";
 import { imageInstructions } from "../instructions/image.instructions.js";
 import { captureScreen } from "../../tools/takeScreenShot.js";
-import { callAI } from "../CallAI.js";
-import { getChat } from "../../services/chat.history.service.js";
+
+const GEMINI_API_KEYS = [GEMINI_API_Don_Acc, GEMINI_API_Main_Acc].filter(
+  Boolean,
+) as string[];
 
 export const imageCheck = async (): Promise<{
   success: boolean;
@@ -19,76 +26,93 @@ export const imageCheck = async (): Promise<{
     return { success: false, buffer: null, error: error.message || "" };
   }
 };
+
 export const summarizeBase64Image = async (
   base64Raw: string,
   chatMessages: ChatMessageType[],
   moreContext: string,
 ): Promise<{ summary: string; base64: string; msg: string } | false> => {
   if (!base64Raw) return false;
+
   const base64Str = base64Raw.startsWith("data:")
     ? base64Raw
     : `data:image/png;base64,${base64Raw}`;
-  const toPass: any = {
-    role: "user",
-    content: [
-      ...(moreContext
-        ? [
-            {
-              type: "text",
-              text: moreContext,
-            },
-          ]
-        : []),
-      {
-        type: "image_url",
-        image_url: {
-          url: base64Str,
-        },
-      },
-    ],
-  };
-  // 1. Try Local Gemini first with gemini-3.6-flash (Free, zero token cost)
-  let response = await callAI("gemini", {
-    chatMessages: [toPass],
-    session: "",
-    instructions: imageInstructions,
-    isJson: false,
-    model: "gemini-3.5-flash-lite",
-    retryCount: 0,
-  });
 
-  // 2. If Local fails, fall back to Live Gemini
-  if (!response || !response.success) {
-    console.warn(
-      "[IMAGE SUMMARIZER] Local model failed, falling back to Live model...",
-    );
-    response = await callAI("gemini", {
-      chatMessages: [toPass],
-      session: "",
-      instructions: imageInstructions,
-      isJson: false,
-      model: "gemini-3.6-flash",
-      retryCount: 0,
-    });
+  const mimeMatch = base64Str.match(/^data:(image\/[a-zA-Z0-9.+]+);base64,/);
+  const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
+  const cleanBase64 = base64Str.replace(
+    /^data:image\/[a-zA-Z0-9.+]+;base64,/,
+    "",
+  );
+
+  const keys =
+    GEMINI_API_KEYS.length > 0
+      ? GEMINI_API_KEYS
+      : [GEMINI_API_Main_Acc || ""].filter(Boolean);
+
+  const promptText = moreContext
+    ? `${imageInstructions}
+
+### 🎯 PRIMARY INSPECTION OBJECTIVE:
+"${moreContext}"
+
+Focus your analysis specifically on fulfilling this objective first. Answer directly with what you see regarding this query.`
+    : imageInstructions;
+
+  for (let i = 0; i < keys.length; i++) {
+    const apiKey = keys[i];
+    if (!apiKey) continue;
+    try {
+      console.log(
+        `[IMAGE SUMMARIZER] Calling native GoogleGenAI with gemini-3.5-flash-lite (key index ${i})...`,
+      );
+      const ai = new GoogleGenAI({ apiKey });
+      const res = await ai.models.generateContent({
+        model: "gemini-3.5-flash-lite",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: promptText },
+              {
+                inlineData: {
+                  mimeType,
+                  data: cleanBase64,
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const visualText = res.text?.trim() || "Image Captured";
+      console.log("[IMAGE SUMMARIZER] Visual context extracted successfully");
+      const summary = `[VISUAL CONTEXT SUMMARIZED BY AI]: ${visualText}`;
+      return { summary, base64: base64Str, msg: visualText };
+    } catch (err: any) {
+      console.warn(
+        `[IMAGE SUMMARIZER] Key index ${i} failed:`,
+        err?.message || err,
+      );
+      if (i === keys.length - 1) {
+        console.error(
+          "[IMAGE SUMMARIZER ERROR]: All keys failed to summarize image",
+          err,
+        );
+        return {
+          summary: "Image Captured But Failed To Give Context About image",
+          base64: base64Str,
+          msg: err?.message || "Failed To Give Context About image",
+        };
+      }
+    }
   }
 
-  console.log("Image Context MSG: ", response.msg);
-  if (!response.success)
-    return {
-      summary: "Image Captured But Failed To Give Context About image",
-      base64: base64Str,
-      msg: response.msg || "Failed To Give Context About image",
-    };
-
-  const visualText =
-    response.msg ||
-    (typeof response.rawContent === "string"
-      ? response.rawContent
-      : response.rawContent?.msg ||
-        response.rawContent?.text ||
-        JSON.stringify(response.rawContent));
-  const summary = `[VISUAL CONTEXT SUMMARIZED BY AI]: ${visualText}`;
-  return { summary, base64: base64Str, msg: visualText };
+  return {
+    summary: "Image Captured But Failed To Give Context About image",
+    base64: base64Str,
+    msg: "No Gemini API key available for image summarization.",
+  };
 };
 
 export const imageSet = async (
@@ -96,41 +120,14 @@ export const imageSet = async (
   moreContext: string,
 ): Promise<{ summary: string; base64: string } | false> => {
   const isImage = await imageCheck();
-  if (!isImage.success) return false;
-  const imageBuffer = isImage.buffer;
-  const base64Str = `data:image/jpeg;base64,${imageBuffer?.toString("base64")}`;
-  const toPass: any = {
-    role: "user",
-    content: [
-      ...(moreContext
-        ? [
-            {
-              type: "text",
-              text: moreContext,
-            },
-          ]
-        : []),
-      {
-        type: "image_url",
-        image_url: {
-          url: base64Str,
-        },
-      },
-    ],
-  };
-  const response = await geminiAICall({
-    chatMessages: toPass,
-    retryCount: 0,
-    model: "gemini-3.5-flash-lite",
-    instructionString: imageInstructions,
-    isJson: false,
-  });
-  if (!response.success) return false;
-  const summary = `[VISUAL CONTEXT SUMMARIZED BY AI]: ${JSON.stringify(response.content)}`;
-  return { summary, base64: base64Str };
+  if (!isImage.success || !isImage.buffer) return false;
+  const base64Str = `data:image/png;base64,${isImage.buffer.toString("base64")}`;
+  const res = await summarizeBase64Image(base64Str, chatMessages, moreContext);
+  if (!res) return false;
+  return { summary: res.summary, base64: res.base64 };
 };
 
-//After screenshot of the screen....
+// After screenshot of the screen....
 export const summarize_image = async (
   context: string = "",
   imageBuffer: Buffer,
@@ -138,32 +135,15 @@ export const summarize_image = async (
   userId: string,
 ) => {
   const base64Str = `data:image/png;base64,${imageBuffer?.toString("base64")}`;
-  const toPass: any = {
-    role: "user",
-    content: [
-      ...(context
-        ? [
-            {
-              type: "text",
-              text: context,
-            },
-          ]
-        : []),
-      {
-        type: "image_url",
-        image_url: {
-          url: base64Str,
-        },
-      },
-    ],
+  const res = await summarizeBase64Image(base64Str, [], context);
+  return {
+    summaryImage: {
+      cmd: "",
+      msg: res ? res.msg : "Failed To Give Context About image",
+      workingon: "",
+      success: !!res,
+      rawContent: res ? res.msg : "",
+    },
+    success: !!res,
   };
-  const summary = await callAI("gemini", {
-    chatMessages: toPass,
-    session: session,
-    instructions: imageInstructions,
-    isJson: false,
-    model: "gemini-3.5-flash-lite",
-    retryCount: 0,
-  });
-  return { summaryImage: summary, success: true };
 };

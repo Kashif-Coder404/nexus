@@ -16,6 +16,9 @@ const GEMINI_API_Don_Acc = process.env.GEMINI_API_Don_Acc;
 const GEMINI_WEB_2_URL = process.env.GEMINI_WEB_2_URL;
 const JWT_SECRET = process.env.JWT_SECRET;
 const TOKEN_ROUTER_API = process.env.TOKEN_ROUTER_API;
+const CLOUDINARY_API = process.env.CLOUDINARY_API;
+const CLOUDINARY_NAME = process.env.CLOUDINARY_NAME;
+const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
 export {
   API_FOR_AUTHENTICATION,
   MONGO_URI,
@@ -27,6 +30,9 @@ export {
   GEMINI_WEB_2_URL,
   JWT_SECRET,
   TOKEN_ROUTER_API,
+  CLOUDINARY_API,
+  CLOUDINARY_NAME,
+  CLOUDINARY_API_SECRET,
 };
 
 export const initializeKeys = async () => {
