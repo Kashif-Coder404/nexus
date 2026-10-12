@@ -56,9 +56,6 @@ Focus your analysis specifically on fulfilling this objective first. Answer dire
     const apiKey = keys[i];
     if (!apiKey) continue;
     try {
-      console.log(
-        `[IMAGE SUMMARIZER] Calling native GoogleGenAI with gemini-3.5-flash-lite (key index ${i})...`,
-      );
       const ai = new GoogleGenAI({ apiKey });
       const res = await ai.models.generateContent({
         model: "gemini-3.5-flash-lite",
@@ -79,7 +76,6 @@ Focus your analysis specifically on fulfilling this objective first. Answer dire
       });
 
       const visualText = res.text?.trim() || "Image Captured";
-      console.log("[IMAGE SUMMARIZER] Visual context extracted successfully");
       const summary = `[VISUAL CONTEXT SUMMARIZED BY AI]: ${visualText}`;
       return { summary, base64: base64Str, msg: visualText };
     } catch (err: any) {

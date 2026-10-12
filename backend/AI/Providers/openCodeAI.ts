@@ -75,8 +75,8 @@ export const openCodeAICall = async (
     const isRateLimited = error.response && error.response.status === 429;
 
     if (isRateLimited) {
-      console.log(
-        `OpenCode rate limited. Retrying... (Retry ${retryCount + 1}/2)`,
+      console.warn(
+        `[OPENCODE AI] Rate limited. Retrying... (Retry ${retryCount + 1}/2)`,
       );
       // return openCodeAICall(chatMessages, retryCount + 1);
     }

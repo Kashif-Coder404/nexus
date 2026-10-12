@@ -273,9 +273,7 @@ export const liveGeminiAICall = async ({
           },
         },
         callbacks: {
-          onopen: () => {
-            console.log("[GEMINI LIVE] WebSocket connection ready.");
-          },
+          onopen: () => {},
           onmessage: (message: any) => {
             // Collect text transcription if available
             if (message.serverContent?.outputTranscription?.text) {
@@ -307,7 +305,7 @@ export const liveGeminiAICall = async ({
 
             if (!textToParse && retryCount < maxKeys - 1) {
               const nextKeyIndex = (safeKeyIndex + 1) % maxKeys;
-              console.log(
+              console.warn(
                 `[GEMINI LIVE] Empty response / closed early (code ${event?.code}). Retrying with next key index ${nextKeyIndex}... (Attempt ${retryCount + 1}/${maxKeys})`,
               );
               await new Promise((r) => setTimeout(r, 1500));

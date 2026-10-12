@@ -27,7 +27,7 @@ export class ClientSession {
       const parsed = JSON.parse(data.toString());
       //Handle Commands/Messages....
     } catch (error) {
-      console.log("Invalid JSON", error);
+      console.error("Invalid JSON", error);
     }
   }
 
@@ -70,10 +70,10 @@ export class ClientDeviceSession extends ClientSession {
     try {
       const parsed = JSON.parse(data.toString());
       if (parsed.type === "auth") {
-        console.log("Handle the auth for the device");
+        // Handle the auth for the device
       }
     } catch (error) {
-      console.log("Invalid JSON", error);
+      console.error("Invalid JSON", error);
     }
   }
   protected override async Init(){

@@ -20,54 +20,6 @@ function getNextGroqKey() {
   return key;
 }
 
-async function checkGroqApi() {
-  const GROQ_API_KEY = getNextGroqKey();
-  try {
-    const model = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"];
-    const proxy = `http://ykowtycz-rotate:9g9v96c9zsux@p.webshare.io:80`;
-    const agent = new HttpsProxyAgent(proxy);
-    const response = await axios.post(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        model: model[0],
-        messages: [
-          {
-            role: "system",
-            content: instructions,
-          },
-          {
-            role: "user",
-            content: "hey search for app youtube",
-          },
-        ],
-        temperature: 0.5,
-        response_format: {
-          type: "json_object",
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        httpsAgent: agent,
-      },
-    );
-    console.log(response);
-  } catch (error: any) {
-    console.error("[GROQ AI] API STATUS: FAILED");
-    // Axios captures API error details in error.response.data
-    if (error.response) {
-      console.error("[GROQ AI] Status:", error.response.status);
-      console.error("[GROQ AI] Error Details:", error.response.data);
-    } else {
-      console.error("[GROQ AI] Error Message:", error.message);
-    }
-  }
-}
-
-checkGroqApi();
-
 // MAIN: API CALL FUNCTION
 
 export const groqAICall = async (
@@ -136,8 +88,8 @@ export const groqAICall = async (
       error.response?.data?.error?.message?.includes("on_demand");
 
     if (isRateLimited || isDemandError) {
-      console.log(
-        `Key rate limited or demand exceeded. Changing key... (Retry ${retryCount + 1}/${GROQ_API_KEYs.length})`,
+      console.warn(
+        `[GROQ AI] Key rate limited or demand exceeded. Changing key... (Retry ${retryCount + 1}/${GROQ_API_KEYs.length})`,
       );
       return groqAICall(chatMessages, retryCount + 1);
     }

@@ -214,11 +214,10 @@ const DevicesRedesign = ({ device }: { device: Device }) => {
 
       const result = await res.json();
       if (result.success) {
-        console.log("Device renamed successfully");
         requestDevices();
       } else {
         setNewName(device.deviceName);
-        console.log("Device rename failed");
+        console.error("Device rename failed:", result.message);
       }
     } catch (error) {
       console.error("Error renaming device:", error);

@@ -154,7 +154,6 @@ const initWebsocket = (server: Server) => {
       req.headers["Authorization"] ||
       queryToken;
     const ipHeader = req.headers["ipaddress"] || req.headers["ipAddress"];
-    console.log("IP ADDRESS: ", ipHeader);
     if (authHeader) {
       await connectDevice(ws, authHeader, ipHeader as string);
     }
@@ -354,15 +353,6 @@ const initWebsocket = (server: Server) => {
             const currUserId = ws.userId;
             const { content, behaviour = "friendly", model } = parsedData;
             let targetSessionId = parsedData.sessionId;
-
-            console.log("[WS chat_send] Received:", {
-              userId: currUserId,
-              sessionId: targetSessionId,
-              content,
-              behaviour,
-              model,
-            });
-
             if (!content || !content.toString().trim()) break;
 
             const defaultModel = {
@@ -546,7 +536,7 @@ const initWebsocket = (server: Server) => {
             break;
           }
           default:
-            console.log(`[WS] Unhandled event type: ${type}`);
+            console.warn(`[WS] Unhandled event type: ${type}`);
             break;
         }
       } catch (err: any) {

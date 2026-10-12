@@ -25,7 +25,6 @@ export const context_register: Record<string, string> = {
 export const get_context = (
   toolOrSkill: string,
 ): { success: boolean; context?: string; error?: string } => {
-  console.log("AI GETTING CONTEXT FOR THE TOOL OR SKILL: ", toolOrSkill);
   try {
     const key = (toolOrSkill || "").toLowerCase().trim();
     const context_string: string = context_register[key];

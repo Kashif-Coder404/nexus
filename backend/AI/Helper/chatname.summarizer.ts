@@ -12,8 +12,8 @@ const chatSummarize = async (chatMessage: any): Promise<string> => {
   });
   //   console.log(summarized);
   if (summarized.success === false) {
-    console.log(
-      "Failed To Put Title with live model, retrying with flash lite",
+    console.warn(
+      "[CHAT TITLE] Live model title generation failed, retrying with flash lite...",
     );
   } else {
     return summarized.rawContent || summarized.msg;

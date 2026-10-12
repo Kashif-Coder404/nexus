@@ -115,11 +115,9 @@ export const tokenRouterAICall = async ({
     const isParseError = error instanceof SyntaxError;
 
     if (isRateLimited || isParseError) {
-      console.log(
-        `Token Router error (${isRateLimited ? "Rate Limited" : "JSON Parse Error"}). Retrying... (Retry ${retryCount + 1}/3)`,
+      console.warn(
+        `[TOKEN ROUTER AI] Error (${isRateLimited ? "Rate Limited" : "JSON Parse Error"}: ${error.message}). Retrying in 5s... (Attempt ${retryCount + 1}/3)`,
       );
-      console.log("Error Message => ", error.message);
-      console.log("Waiting for 5 seconds before retry...");
       await new Promise((resolve) => setTimeout(resolve, 5000));
       return tokenRouterAICall({
         chatMessages,

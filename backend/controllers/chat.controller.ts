@@ -15,7 +15,6 @@ export const sendMessage = async (req: any, res: any) => {
     isLiveModel: false,
   };
   const { content, behaviour = "friendly", model = defaultModel } = req.body;
-  console.log(content, behaviour, model);
   const userId = req.userId;
   const session = req.sessionId;
   console.log(`[CHAT] User: ${userId} | Session: ${session}`);
