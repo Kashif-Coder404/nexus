@@ -17,6 +17,7 @@
 | ⚪ **TODO** | **5. AI Prompt Guardrails & Winget Rules** | `main.Instructions.ts` | Negative rules: ban modal dialogs, ban infinite ping, prefer `winget --disable-interactivity`. |
 | ⚪ **TODO** | **6. Dynamic Skills Architecture (MongoDB + LRU)** | `AskAI_OOP.ts`, MongoDB `Skills` | Split 470-line prompt into on-demand skills. Reduce latency and greetings token cost. |
 | ⚪ **TODO** | **7. Native OS Mouse & Key Inputs** | `local-be-v2` | `click_coordinate(x, y)` and `press_key(key)` to bypass GUI installers when CLI flags don't exist. |
+| ⚪ **TODO** | **8. Desktop Electron App & Dual-Release Architecture** | `SetupPage`, Electron, `Local-BE-v2` | SetupPage UI (Install/Uninstall/Update) ➔ Electron Desktop Wrapper ➔ Dual GitHub Releases. |
 
 ---
 
@@ -139,3 +140,50 @@ Add native OS interaction tools:
 1. `click_coordinate(x, y)`: Simulates left/right mouse click via Windows `SendInput`.
 2. `press_key(key)`: Simulates `Enter`, `Tab`, `Space`, or `Escape`.
 Nexus can use `capture_screen` to see the prompt, click `[Yes]`, and successfully finish the installation/uninstallation!
+
+---
+
+## 6. Desktop Electron App, SetupPage & Dual-Release Architecture
+
+### 🛑 The Problem:
+1. `nexus.exe` currently runs as a silent background daemon with a local browser tab (`http://localhost:4100`). Users prefer a dedicated, native desktop app window rather than opening a browser tab.
+2. If `nexus.exe` is uninstalled or offline, the web page cannot easily restart or re-download it without manual PowerShell scripts.
+3. Users need an intuitive desktop workflow with system tray management, 1-click install/uninstall, and silent auto-updates.
+
+### 💡 The Solution (Modular Manager + Daemon Pipeline):
+
+```
+SetupPage (UI States) ➔ Electron Desktop Wrapper ➔ Dual GitHub Release Assets (Installer + WinExe)
+```
+
+#### Step 1: `SetupPage` UI Enhancements (`Local-BE-v2/SetupPage`)
+Add explicit UI states to manage the daemon lifecycle:
+- **Offline / Uninstalled State**:
+  - Show clean hero card with **`[Install / Start Nexus]`** primary button.
+  - Download / installation progress bar with percentage.
+- **Active & Paired State**:
+  - Green status badge, live pairing code, command toggle switch.
+  - Secondary controls: **`[Stop Service]`** and **`[Uninstall Daemon]`**.
+- **Update Check & Banner**:
+  - Automatically queries latest GitHub release tag against local version.
+  - Shows **`[Update to vX.X.X]`** banner with 1-click in-place update.
+
+#### Step 2: Electron Desktop Wrapper
+Wrap the existing React/Vite `SetupPage` inside Electron:
+- **Main Process (`main.js`)**:
+  - Creates the desktop window and system tray icon.
+  - IPC handler for `nexus.exe --start`, `nexus.exe --stop`, and `nexus.exe --uninstall`.
+  - Stream-downloader to download latest `nexus.exe` from GitHub releases directly into `%LOCALAPPDATA%\Programs\Nexus\nexus.exe`.
+- **System Tray**:
+  - Minimizes to tray on close with quick menu: `Open Dashboard`, `Status: Active`, `Restart Companion`, `Quit`.
+
+#### Step 3: Packaging & Installer (`electron-builder` / NSIS)
+- Build a production-ready Windows installer: **`Nexus-Setup.exe`**.
+- Bundles the initial `nexus.exe` inside `resources/` for immediate offline installation on first launch.
+- **NSIS Custom Uninstaller Hook (`installer.nsh`)**:
+  - When the user uninstalls the Electron app via Windows Settings, the uninstaller automatically executes `nexus.exe --uninstall` and deletes the Scheduled Task to prevent leftover zombie background services.
+
+#### Step 4: Dual GitHub Releases
+Publish two assets per release on GitHub:
+1. **`Nexus-Setup-<version>.exe`**: The complete graphical desktop installer for end users.
+2. **`nexus.exe`**: The standalone C# WinExe companion binary (for headless CLI servers and for Electron's in-place auto-updater).

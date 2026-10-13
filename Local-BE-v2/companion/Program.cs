@@ -296,12 +296,18 @@ app.MapGet("/api/pairing-status", async () =>
         _ = WebSocketClientService.SendPairingInitAsync();
     }
 
+    bool isInstalled = File.Exists(SetupServices.TargetExePath);
+
     return Results.Ok(new
     {
         success = true,
         isConnected = DeviceStateManager.IsConnectedToBackend,
         isPaired = !string.IsNullOrEmpty(token),
         isEnable = DeviceStateManager.IsServiceEnabled,
+        isInstalled,
+        installPath = SetupServices.TargetExePath,
+        token,
+        deviceName = Environment.MachineName,
         code,
         expiresat = DeviceStateManager.CodeExpiresAt?.ToString("o"),
         remainingSeconds = DeviceStateManager.RemainingSeconds,
