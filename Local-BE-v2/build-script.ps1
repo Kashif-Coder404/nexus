@@ -9,11 +9,7 @@ dotnet publish -c Release -r win-x64 --self-contained `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
-    -p:OutputType=Exe `
+    -p:OutputType=WinExe `
     -o ./dist
 set-location ..
-
-if (Test-Path "./companion/dist/nexus.exe") {
-    Copy-Item "./companion/dist/nexus.exe" -Destination "./nexus.exe" -Force
-}
 

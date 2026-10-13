@@ -68,6 +68,8 @@ local-be-v2/nexus.exe
 local-be-v2/nexus.pdb
 Local-BE-v2/nexus.exe
 Local-BE-v2/nexus.pdb
+Local-BE-v2/production/
+local-be-v2/production/
 
 # .NET Build outputs
 [Bb]in/
