@@ -2,6 +2,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { IncomingMessage, Server } from "http";
 import { ActiveSessions, CustomWebSocket, PendingTask } from "./Types.js";
 import { verifyToken } from "../jwt.service.js";
+import { IncomingWSPayload } from "../../AI/Types.js";
 
 //Client = Frontend , ClientDevice = Local Backend WS
 export class ClientSession {
@@ -55,32 +56,98 @@ export class ClientSession {
 }
 
 export class ClientDeviceSession extends ClientSession {
-  private id: string = "";
-  private name: string = "";
-  private Ip: string = "";
-  private service: boolean = false;
+  public deviceName: string = "";
+  public IpAddress: string = "";
+  public isService: boolean = false;
+  public lastSeenAt: number = Date.now();
   private watchdotTimer: NodeJS.Timeout | null = null;
   constructor(
     public ws: WebSocket,
     public userId: string,
+    public deviceId: string,
   ) {
     super(ws, userId);
   }
   protected override async onMessage(data: any) {
     try {
       const parsed = JSON.parse(data.toString());
-      if (parsed.type === "auth") {
-        console.log("Handle the auth for the device");
+      const { type } = parsed;
+      switch (type) {
+        case "ping": {
+          this.lastSeenAt = Date.now();
+          break;
+        }
+        case "PairingInit": {
+          console.log("[Device] Received PairingInit");
+          break;
+        }
+        case "cmd_response": {
+          console.log("[Device] Received cmd_response");
+          break;
+        }
+        case "cmd_chunk": {
+          console.log("[Device] Received cmd_chunk");
+          break;
+        }
+        case "task_finished": {
+          console.log("[Device] Received task_finished");
+          break;
+        }
+        case "task_promoted": {
+          console.log("[Device] Received task_promoted");
+          break;
+        }
+        case "revoke-device": {
+          console.log("[Device] Received revoke-device");
+          break;
+        }
+        default: {
+          console.log("[Device] Unknown message type:", type);
+          break;
+        }
       }
     } catch (error) {
       console.log("Invalid JSON", error);
     }
   }
-  protected override async Init(){
-     
-  };
+
+  protected override async Init() {
+    WebSocketService.deviceClients.set(this.deviceId, this);
+    //Making aware to write true in the frontend if the device is get online
+    WebSocketService.sendToClient(this.userId, {
+      type: "device_status",
+      payload: {
+        device: {
+          id: this.deviceId,
+          name: this.deviceName,
+          ip: this.IpAddress,
+          isService: this.isService,
+          userId: this.userId,
+        },
+        online: true,
+        service: this.isService,
+      },
+    });
+  }
+
   protected override onClose() {
-    console.log(`Device Disconnected (${this.id})`);
+    WebSocketService.deviceClients.delete(this.deviceId);
+    //Making aware to write false in the frontend if hte device is get offline
+    WebSocketService.sendToClient(this.userId, {
+      type: "device_status",
+      payload: {
+        device: {
+          id: this.deviceId,
+          name: this.deviceName,
+          ip: this.IpAddress,
+          isService: this.isService,
+          userId: this.userId,
+        },
+        online: false,
+        service: this.isService,
+      },
+    });
+    console.log(`Device Disconnected (${this.deviceId})`);
   }
 }
 
@@ -92,22 +159,62 @@ type ClientTabs = Set<ClientSession>;
 
 export class WebSocketService {
   private static wss: WebSocketServer;
-  public static userClients = new Map<string, ClientTabs>();
   public static activeSessions = new Map<string, ActiveSessions>();
+
+  public static userClients = new Map<string, ClientTabs>();
+  public static deviceClients = new Map<string, ClientDeviceSession>();
+  public static unknownDeviceWaitingList = new Map<string, WebSocket>();
+
   private static pendingTasks = new Map<string, PendingTask>();
   private static pendingRequest = new Map<string, string>();
-
   public static init(server: Server) {
     this.wss = new WebSocketServer({ server });
-    this.wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
-      this.onConnection(ws, req);
+    this.wss.on("connection", (ws: WebSocket) => {
+      this.onConnection(ws);
     });
+    setInterval(() => {
+      this.watchGaurd();
+    }, 30000);
   }
-  private static async onConnection(ws: WebSocket, req: IncomingMessage) {
+  private static watchGaurd() {
+    const now = Date.now();
+    for (const [deviceId, device] of this.deviceClients.entries()) {
+      if (now - device.lastSeenAt > 30000) {
+        console.log(`[Watchdog] Device ${deviceId} timed out`);
+        device.ws.terminate();
+      }
+    }
+  }
+  private static async onConnection(ws: WebSocket) {
     ws.once("message", async (raw) => {
-      const data = JSON.parse(raw.toString());
-      if (data.type === "auth") {
-        const token = data.token.replace(/^Bearer\s*/i, "").trim();
+      const payload: IncomingWSPayload = JSON.parse(raw.toString());
+      const type = payload.type;
+      if (type === "PairingInit") {
+        const code = payload.code || payload.data?.code;
+        if (!code) {
+          ws.send(
+            JSON.stringify({
+              type: "PairingFailed",
+              message: "Invalid Pairing Code",
+            }),
+          );
+          return;
+        }
+        WebSocketService.unknownDeviceWaitingList.set(code, ws);
+        ws.on("close", () => {
+          WebSocketService.unknownDeviceWaitingList.delete(code);
+        });
+      } else if (type === "auth") {
+        const token = payload.token?.replace(/^Bearer\s*/i, "").trim();
+        if (!token) {
+          ws.send(
+            JSON.stringify({
+              type: "PairingFailed",
+              message: "Invalid Token",
+            }),
+          );
+          return;
+        }
         const decoded: any = verifyToken(token);
         if (!decoded.success) {
           ws.send(
@@ -121,7 +228,11 @@ export class WebSocketService {
         if (!decoded.token.deviceId) {
           new ClientSession(ws, decoded.token.userId);
         } else {
-          new ClientDeviceSession(ws, decoded.token.userId);
+          new ClientDeviceSession(
+            ws,
+            decoded.token.userId,
+            decoded.token.deviceId,
+          );
         }
       }
     });
