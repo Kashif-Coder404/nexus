@@ -25,12 +25,4 @@
     <!-- Allows running as a native Windows Service -->
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
   </ItemGroup>
-
-  <ItemGroup>
-    <None Update="setupPage.html">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <EmbeddedResource Include="setupPage.html" />
-  </ItemGroup>
-
 </Project>

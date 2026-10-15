@@ -3,12 +3,12 @@ import {
   Info,
   Shield,
   Settings,
-  ChevronRight,
   ShieldCheck,
   ShieldAlert,
   Copy,
   Check,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -136,6 +136,18 @@ export default function PairingCard({
                 )}
               </button>
             </div>
+            {!isDevicePaired && displayCode && (
+              <a
+                href="https://nexus-pc-ai.netlify.app"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-mono text-purple-400/80 hover:text-purple-300 transition-colors pt-0.5"
+                title="Open nexus-pc-ai.netlify.app to pair"
+              >
+                <span>Pair at nexus-pc-ai.netlify.app</span>
+                <ExternalLink className="w-3 h-3 text-purple-400" />
+              </a>
+            )}
           </div>
         )}
       </div>
@@ -231,15 +243,12 @@ export default function PairingCard({
         </div>
       )}
 
-      {/* ── 4. REMOTE EXECUTION BANNER ── */}
-      <button
-        type="button"
-        onClick={onToggleSwitch}
-        disabled={isToggling}
-        className={`w-full p-4 rounded-xl border transition-all flex items-center justify-between cursor-pointer group text-left ${
+      {/* ── 4. REMOTE EXECUTION BANNER WITH TOGGLE SWITCH ── */}
+      <div
+        className={`w-full p-4 rounded-xl border transition-all flex items-center justify-between text-left ${
           isEnable
-            ? "bg-[#071915]/60 hover:bg-[#071915]/90 border-emerald-900/60 shadow-[0_0_15px_rgba(52,211,153,0.12)]"
-            : "bg-[#1f160b]/60 hover:bg-[#1f160b]/90 border-amber-900/60 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
+            ? "bg-[#071915]/60 border-emerald-900/60 shadow-[0_0_15px_rgba(52,211,153,0.12)]"
+            : "bg-[#1f160b]/60 border-amber-900/60 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
         }`}
       >
         <div className="flex items-center gap-3">
@@ -248,22 +257,44 @@ export default function PairingCard({
           ) : (
             <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
           )}
-          <span
-            className={`text-sm font-semibold tracking-wide ${
-              isEnable ? "text-emerald-300" : "text-amber-300"
-            }`}
-          >
-            Remote Execution: {isEnable ? "ALLOWED" : "PAUSED"}
-          </span>
+          <div className="flex flex-col">
+            <span
+              className={`text-sm font-semibold tracking-wide ${
+                isEnable ? "text-emerald-300" : "text-amber-300"
+              }`}
+            >
+              Remote Command Execution: {isEnable ? "ALLOWED" : "PAUSED"}
+            </span>
+            <span className="text-[11px] font-mono text-zinc-400">
+              {isEnable
+                ? "Autonomous cloud instructions can run on this PC"
+                : "All incoming cloud execution is paused & blocked"}
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 text-zinc-400 group-hover:text-white transition-colors">
-          <span className="text-xs font-mono text-zinc-500 hidden sm:inline">
-            Click to {isEnable ? "Pause" : "Resume"}
-          </span>
-          <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:translate-x-0.5 transition-transform" />
-        </div>
-      </button>
+        {/* Sliding Toggle Switch */}
+        <button
+          type="button"
+          onClick={onToggleSwitch}
+          disabled={isToggling}
+          role="switch"
+          aria-checked={isEnable}
+          className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+            isEnable
+              ? "bg-emerald-600 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+              : "bg-zinc-700/80"
+          }`}
+          title={isEnable ? "Click to Pause Remote Execution" : "Click to Allow Remote Execution"}
+        >
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+              isEnable ? "translate-x-6" : "translate-x-0"
+            }`}
+          />
+        </button>
+      </div>
 
       {/* ── 5. OPTIONAL CONFIG DRAWER ── */}
       {showConfig && (

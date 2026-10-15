@@ -2,12 +2,14 @@ interface InstallCardProps {
   isInstalling: boolean;
   installProgress: number;
   onInstall: () => void;
+  liveLog?: string;
 }
 
 export default function InstallCard({
   isInstalling,
   installProgress,
   onInstall,
+  liveLog,
 }: InstallCardProps) {
   return (
     <div className="w-full max-w-xl mx-auto flex flex-col items-center justify-center space-y-6 text-center animate-in fade-in zoom-in-95 duration-300">
@@ -28,21 +30,29 @@ export default function InstallCard({
 
       {/* Installation / Start Progress Track */}
       {isInstalling && (
-        <div className="w-72 sm:w-80 space-y-2 text-center animate-in fade-in">
+        <div className="w-80 sm:w-96 space-y-2.5 text-center animate-in fade-in">
           <div className="w-full h-2.5 rounded-full bg-zinc-800/80 overflow-hidden border border-zinc-700/60 shadow-inner">
             <div
               className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-300 shadow-[0_0_12px_#a855f7]"
               style={{ width: `${installProgress}%` }}
             />
           </div>
-          <p className="text-xs text-zinc-300 font-mono">
-            {installProgress < 40
-              ? "Fetching binary..."
-              : installProgress < 85
-                ? "Configuring Windows Service..."
-                : "Starting localhost:4100..."}{" "}
-            {installProgress}%
-          </p>
+          <div className="flex flex-col items-center space-y-1.5">
+            <div className="w-full max-w-sm px-3 py-1.5 rounded-lg bg-black/50 border border-purple-500/20 backdrop-blur-sm flex items-center justify-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <p className="text-xs text-purple-200 font-mono truncate" title={liveLog}>
+                {liveLog ||
+                  (installProgress < 40
+                    ? "Starting installer..."
+                    : installProgress < 85
+                      ? "Configuring Windows Service..."
+                      : "Starting localhost:4100...")}
+              </p>
+            </div>
+            <span className="text-[11px] font-mono text-zinc-500">
+              {installProgress}%
+            </span>
+          </div>
         </div>
       )}
     </div>

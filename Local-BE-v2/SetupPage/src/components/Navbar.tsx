@@ -1,4 +1,4 @@
-import { Sparkles, Trash2, Download } from "lucide-react";
+import { Sparkles, Trash2, Download, ExternalLink } from "lucide-react";
 
 interface NavbarProps {
   isDaemonInstalled: boolean;
@@ -17,14 +17,17 @@ export default function Navbar({
       <div className="flex items-center gap-3.5">
         <div className="relative flex items-center justify-center">
           <img
-            src="/favicon.svg"
+            src="https://i.ibb.co/NgXjccp7/Neon-Purple-Orbital-N-Emblem.png"
             alt="Nexus Logo"
             className="w-8 h-8 object-contain drop-shadow-[0_0_14px_rgba(168,85,247,0.7)]"
           />
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xl font-bold tracking-tight text-white flex items-center">
-            Nexus<span className="text-[#c084fc] drop-shadow-[0_0_6px_rgba(192,132,252,0.8)]">.</span>
+            Nexus
+            <span className="text-[#c084fc] drop-shadow-[0_0_6px_rgba(192,132,252,0.8)]">
+              .
+            </span>
           </span>
           <span className="px-3 py-1 rounded-full text-xs font-medium text-zinc-300 bg-[#140d24]/70 border border-[#4c227b]/40 backdrop-blur-md">
             Desktop Companion
@@ -32,8 +35,20 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Right: Actions (Download, Update, Uninstall) — Connected indicator removed per user request */}
+      {/* Right: Actions (Cloud Link, Download, Update, Uninstall) */}
       <div className="flex items-center gap-3">
+        {/* Direct Link to Cloud AI Web App */}
+        <a
+          href="https://nexus-pc-ai.netlify.app"
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-purple-600/80 to-indigo-600/80 hover:from-purple-500 hover:to-indigo-500 border border-purple-400/40 shadow-[0_0_15px_rgba(168,85,247,0.35)] transition-all cursor-pointer"
+          title="Open Nexus Cloud Dashboard (nexus-pc-ai.netlify.app)"
+        >
+          <ExternalLink className="w-3.5 h-3.5 text-purple-200" />
+          <span>Cloud Web App</span>
+        </a>
+
         {/* Download Standalone Binary Button */}
         <a
           href="https://github.com/Kashif-Coder404/nexus-v2/releases/latest/download/nexus.exe"

@@ -178,6 +178,10 @@ public static class SetupServices
             {
                 Console.WriteLine("[Setup] Added Windows Defender exclusion for Nexus folder.");
             }
+            else
+            {
+                Console.WriteLine("[Setup] Removed Windows Defender exclusion for Nexus folder.");
+            }
         }
         catch { }
     }
@@ -200,6 +204,10 @@ public static class SetupServices
             if (!isRemove)
             {
                 Console.WriteLine("[Setup] Added Windows Firewall rule for Port 4100.");
+            }
+            else
+            {
+                Console.WriteLine("[Setup] Removed Windows Firewall rule for Port 4100.");
             }
         }
         catch { }
@@ -233,9 +241,11 @@ public static class SetupServices
             }
 
             AddPath();
-            AddDefenderExclusion(isRemove: false);
-            ConfigureFirewall(isRemove: false);
-            SheduleTask(isRemove: false);
+            await Task.WhenAll(
+                Task.Run(() => AddDefenderExclusion(isRemove: false)),
+                Task.Run(() => ConfigureFirewall(isRemove: false)),
+                Task.Run(() => SheduleTask(isRemove: false))
+            );
 
             // Start the installed agent silently in the background with HIGHEST elevation
             try
@@ -275,9 +285,9 @@ public static class SetupServices
                 });
             }
 
-            OpenDashboard();
+            // OpenDashboard();
 
-            Console.WriteLine("[SUCCESS] All done! Opening pairing dashboard...");
+            // Console.WriteLine("[SUCCESS] All done! Opening pairing dashboard...");
             await Task.Delay(2500);
         }
         catch (Exception ex)
@@ -357,20 +367,30 @@ public static class SetupServices
         {
             await RevokeFromCloudAsync();
             StopRunningInstances();
-            SheduleTask(isRemove: true);
-            ConfigureFirewall(isRemove: true);
-            AddDefenderExclusion(isRemove: true);
+            await Task.WhenAll(
+                Task.Run(() => SheduleTask(isRemove: true)),
+                Task.Run(() => ConfigureFirewall(isRemove: true)),
+                Task.Run(() => AddDefenderExclusion(isRemove: true))
+            );
             RemovePath();
+
+            // Safe Token Cleanup (only delete deviceToken.json instead of wiping AppData\Nexus which locks on Electron)
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var nexusPath = Path.Combine(appData, "Nexus");
-            if (Directory.Exists(nexusPath))
+            var tokenFile = Path.Combine(appData, "Nexus", "deviceToken.json");
+            try
             {
-                Directory.Delete(nexusPath, recursive: true);
+                if (File.Exists(tokenFile))
+                {
+                    File.Delete(tokenFile);
+                    Console.WriteLine("[Setup] Removed local device token.");
+                }
             }
+            catch { }
+
             Process.Start(new ProcessStartInfo
             {
                 FileName = "cmd.exe",
-                Arguments = $"/c timeout /t 2 /nobreak > nul & rmdir /s /q \"{InstallDir}\"",
+                Arguments = $"/c ping 127.0.0.1 -n 3 > nul & rmdir /s /q \"{InstallDir}\"",
                 CreateNoWindow = true,
                 UseShellExecute = false
             });

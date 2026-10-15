@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:app": "tsc -b && vite build && node -e \"require('fs').copyFileSync('dist/index.html', '../companion/setupPage.html')\"",
+    "build:app": "tsc -b && vite build && node -e \"require('fs').copyFileSync('dist/index.html', '../nexus/index.html')\"",
     "build" : "node build.js",
     "lint": "eslint .",
     "preview": "vite preview"

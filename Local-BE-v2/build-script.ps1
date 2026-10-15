@@ -9,7 +9,7 @@ dotnet publish -c Release -r win-x64 --self-contained `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
-    -p:OutputType=WinExe `
+    -p:OutputType=Exe `
     -o ./dist
 set-location ..
 

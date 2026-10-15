@@ -52,7 +52,7 @@ function parseDeviceToken(rawToken?: string | null): DeviceTokenPayload | null {
       try {
         const parsed = JSON.parse(token);
         token = parsed.token || parsed.deviceToken || token;
-      } catch { }
+      } catch {}
     }
     token = token.replace(/^Bearer\s+/i, "").trim();
     if (!token) return null;
@@ -79,6 +79,7 @@ export default function PairingPage() {
   const [isToggling, setIsToggling] = useState<boolean>(false);
   const [isInstalling, setIsInstalling] = useState<boolean>(false);
   const [installProgress, setInstallProgress] = useState<number>(0);
+  const [liveLog, setLiveLog] = useState<string>("");
   const [modalLoading, setModalLoading] = useState<boolean>(false);
 
   // Custom Confirmation Modal state
@@ -93,18 +94,33 @@ export default function PairingPage() {
 
   // Update Modal state
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
-  const [updateStatus, setUpdateStatus] = useState<string>("Checking GitHub releases...");
+  const [updateStatus, setUpdateStatus] = useState<string>(
+    "Checking GitHub releases...",
+  );
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
   // Check if nexus.exe is actually installed
   const fetchStatus = useCallback(async () => {
     // 1. Electron Native Check (if running in desktop app)
-    const electronAPI = (window as unknown as { nexusAPI?: { checkInstalled: () => Promise<boolean> } }).nexusAPI;
-    if (electronAPI?.checkInstalled) {
+    const electronAPI = (
+      window as unknown as {
+        nexusAPI?: { isInstalled: () => Promise<boolean> };
+      }
+    ).nexusAPI;
+
+    let isElectronInstalled: boolean | null = null;
+    if (electronAPI?.isInstalled) {
       try {
-        const exists = await electronAPI.checkInstalled();
-        setIsDaemonInstalled(exists);
-        if (!exists) return;
+        const exists = await electronAPI.isInstalled();
+        isElectronInstalled = Boolean(exists);
+        setIsDaemonInstalled(isElectronInstalled);
+        try {
+          localStorage.setItem(
+            "nexus_installed",
+            isElectronInstalled ? "true" : "false",
+          );
+        } catch {}
+        if (!isElectronInstalled) return;
       } catch {
         // fallback
       }
@@ -129,7 +145,8 @@ export default function PairingPage() {
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
-        const reallyInstalled = data.isInstalled !== undefined ? Boolean(data.isInstalled) : true;
+        const reallyInstalled =
+          data.isInstalled !== undefined ? Boolean(data.isInstalled) : true;
         setIsDaemonInstalled(reallyInstalled);
         setIsStopped(false);
         try {
@@ -137,21 +154,25 @@ export default function PairingPage() {
           if (data.token) {
             localStorage.setItem("nexus_device_token", data.token);
           }
-        } catch { }
+        } catch {}
       } else {
         setIsStopped(true);
       }
     } catch {
       // Local daemon is offline or stopped
       setIsStopped(true);
-      try {
-        const cached = localStorage.getItem("nexus_installed");
-        if (cached === "true") {
-          setIsDaemonInstalled(true);
-        } else {
-          setIsDaemonInstalled(false);
-        }
-      } catch { }
+
+      // Agar Electron native check pehle ho chuka hai, to offline hone par isDaemonInstalled ko false mat banao
+      if (isElectronInstalled === null) {
+        try {
+          const cached = localStorage.getItem("nexus_installed");
+          if (cached === "true") {
+            setIsDaemonInstalled(true);
+          } else {
+            setIsDaemonInstalled(false);
+          }
+        } catch {}
+      }
     }
   }, []);
 
@@ -160,6 +181,21 @@ export default function PairingPage() {
     const interval = setInterval(fetchStatus, 2500);
     return () => clearInterval(interval);
   }, [fetchStatus]);
+
+  // Subscribe to live installer / background logs from Electron
+  useEffect(() => {
+    const electronAPI = (window as any).nexusAPI;
+    if (electronAPI?.onLog) {
+      const unsub = electronAPI.onLog((log: string) => {
+        if (log && log.trim()) {
+          setLiveLog(log.trim());
+        }
+      });
+      return () => {
+        if (typeof unsub === "function") unsub();
+      };
+    }
+  }, []);
 
   // Read active token from daemon status or persistent localStorage
   const activeToken = useMemo(() => {
@@ -256,13 +292,13 @@ export default function PairingPage() {
       dangerLevel: "danger",
       action: async () => {
         try {
-          await fetch("http://localhost:4100/api/uninstall", { method: "POST" });
+          await (window as any).nexusAPI?.uninstallNexusFile();
           setStatus(null);
           setIsDaemonInstalled(false);
           try {
             localStorage.removeItem("nexus_installed");
             localStorage.removeItem("nexus_device_token");
-          } catch { }
+          } catch {}
         } catch (err) {
           console.error("Uninstall failed:", err);
         }
@@ -281,11 +317,13 @@ export default function PairingPage() {
       dangerLevel: "danger",
       action: async () => {
         try {
-          await fetch("http://localhost:4100/api/uninstall", { method: "POST" });
-          setStatus((prev) => (prev ? { ...prev, isPaired: false, token: null, code: "" } : null));
+          await fetch("http://localhost:4100/api/revoke", { method: "POST" });
+          setStatus((prev) =>
+            prev ? { ...prev, isPaired: false, token: null, code: "" } : null,
+          );
           try {
             localStorage.removeItem("nexus_device_token");
-          } catch { }
+          } catch {}
         } catch (err) {
           console.error("Revoke failed:", err);
         }
@@ -304,7 +342,7 @@ export default function PairingPage() {
       dangerLevel: "warning",
       action: async () => {
         try {
-          await fetch("http://localhost:4100/api/stop-server", { method: "POST" });
+          await (window as any).nexusAPI?.stopNexus();
           setIsStopped(true);
         } catch {
           setIsStopped(true);
@@ -317,9 +355,11 @@ export default function PairingPage() {
   const handleStartServer = async () => {
     setIsStarting(true);
     try {
-      const electronAPI = (window as unknown as { nexusAPI?: { startDaemon: () => Promise<void> } }).nexusAPI;
-      if (electronAPI) {
-        await electronAPI.startDaemon();
+      const electronAPI = (
+        window as unknown as { nexusAPI?: { startNexus: () => Promise<void> } }
+      ).nexusAPI;
+      if (electronAPI?.startNexus) {
+        await electronAPI.startNexus();
       } else {
         await new Promise((r) => setTimeout(r, 1500));
       }
@@ -370,37 +410,41 @@ export default function PairingPage() {
   // Install / Start Nexus
   const handleInstall = async () => {
     setIsInstalling(true);
-    setInstallProgress(20);
+    setLiveLog("Initializing setup...");
+    setInstallProgress(15);
 
     const interval = setInterval(() => {
       setInstallProgress((p) => {
-        if (p >= 90) {
+        if (p >= 85) {
           clearInterval(interval);
-          return 90;
+          return 85;
         }
-        return p + 25;
+        return p + 15;
       });
-    }, 400);
+    }, 500);
 
     try {
-      const electronAPI = (window as unknown as { nexusAPI?: { installDaemon: () => Promise<void> } }).nexusAPI;
-      if (electronAPI) {
-        await electronAPI.installDaemon();
+      const electronAPI = (window as any).nexusAPI;
+      if (electronAPI?.installNexusFile) {
+        await electronAPI.installNexusFile();
       } else {
         await new Promise((r) => setTimeout(r, 1800));
       }
       setInstallProgress(100);
+      setLiveLog("Installation complete! Starting service...");
       setTimeout(() => {
         setIsInstalling(false);
         setIsDaemonInstalled(true);
         setIsStopped(false);
+        setLiveLog("");
         try {
           localStorage.setItem("nexus_installed", "true");
-        } catch { }
+        } catch {}
         fetchStatus();
-      }, 500);
+      }, 700);
     } catch (err) {
       console.error("Install failed:", err);
+      setLiveLog("Installation encountered an issue.");
       setIsInstalling(false);
     } finally {
       clearInterval(interval);
@@ -428,6 +472,7 @@ export default function PairingPage() {
             isInstalling={isInstalling}
             installProgress={installProgress}
             onInstall={handleInstall}
+            liveLog={liveLog}
           />
         ) : (
           /* Main Dashboard UI: Kept even when stopped, with Start button in place of Stop */
