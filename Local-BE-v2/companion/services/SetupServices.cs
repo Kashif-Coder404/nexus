@@ -37,7 +37,8 @@ public static class SetupServices
                 FileName = CurrentExePath,
                 Arguments = string.Join(" ", args),
                 UseShellExecute = true,
-                Verb = "runas"
+                Verb = "runas",
+                WindowStyle = ProcessWindowStyle.Hidden
             };
 
             var process = Process.Start(psi);

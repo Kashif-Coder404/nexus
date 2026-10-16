@@ -1,4 +1,4 @@
-import PairingPage from "./components/page1";
+import PairingPage from "./components/main";
 
 export default function App() {
   return <PairingPage />;

@@ -3,6 +3,7 @@ import path from "node:path";
 import started from "electron-squirrel-startup";
 import { exec, spawn } from "node:child_process";
 import fs from "fs";
+import { runNexusWithLogs } from "./helpers";
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
@@ -53,40 +54,29 @@ const createWindow = () => {
       return { isRunnign: false, data: error.message };
     }
   });
-  ipcMain.handle("nexus-start", () => {
-    console.log("Nexus started !");
+  ipcMain.handle("nexus-start", async () => {
     try {
-      const daemon = spawn("nexus", ["--service"], {
+      const { proc } = runNexusWithLogs("nexus", ["--service"], mainWindow, {
         detached: true,
-        stdio: "ignore",
         shell: false,
         windowsHide: true,
       });
-      const pid = daemon.pid;
-      daemon.unref();
+      proc.unref();
       return {
         status: "success",
         message: "Nexus started successfully",
-        pid,
+        pid: proc.pid,
       };
     } catch (error: any) {
-      console.log("ERROR WHILE STARTING THE NEXUS SERVICE", error.message);
       return { status: "failed", message: error.message };
     }
   });
-  ipcMain.handle("nexus-stop", () => {
-    console.log("Nexus Stoped");
+  ipcMain.handle("nexus-stop", async () => {
     try {
-      const daemon = spawn("nexus", ["--stop"], {
-        detached: true,
-        stdio: "ignore",
-        shell: false,
-        windowsHide: true,
-      });
-      daemon.unref();
+      const { promise } = runNexusWithLogs("nexus", ["--stop"], mainWindow);
+      await promise;
       return { status: "success", message: "Nexus stopped successfully" };
     } catch (error: any) {
-      console.log("ERROR WHILE STOPPING THE NEXUS SERVICE", error.message);
       return { status: "failed", message: error.message };
     }
   });
@@ -95,53 +85,20 @@ const createWindow = () => {
     return fs.existsSync(pathOfInstalledExeFile);
   });
   // mainWindow ko event bhejne ke liye:
-  ipcMain.handle("nexus-install", () => {
-    return new Promise((resolve) => {
-      const proc = spawn(getSourceNexusExe(), ["--install"]);
-
-      // Jab bhi nexus.exe Console.WriteLine karega, ye live event jayega:
-      proc.stdout.on("data", (data) => {
-        const lines = data.toString().split(/\r?\n/).filter(Boolean);
-        for (const line of lines) {
-          console.log("[Install Log]:", line);
-          if (!mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("nexus-log", line.trim());
-          }
-        }
-      });
-
-      proc.stderr.on("data", (data) => {
-        const lines = data.toString().split(/\r?\n/).filter(Boolean);
-        for (const line of lines) {
-          console.log("[Install Err]:", line);
-          if (!mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("nexus-log", line.trim());
-          }
-        }
-      });
-
-      proc.on("close", (code) => {
-        resolve({ success: code === 0 });
-      });
-    });
+  ipcMain.handle("nexus-install", async () => {
+    const { promise } = runNexusWithLogs(
+      getSourceNexusExe(),
+      ["--install"],
+      mainWindow,
+    );
+    return await promise;
   });
 
-  ipcMain.handle("nexus-uninstall", () => {
-    console.log("Nexus Uninstall triggered");
-    try {
-      const targetExe = `${process.env.LOCALAPPDATA}/Programs/Nexus/nexus.exe`;
-      const exeToRun = fs.existsSync(targetExe) ? targetExe : "nexus";
-      const proc = spawn(exeToRun, ["--uninstall"], {
-        detached: true,
-        stdio: "ignore",
-        shell: true,
-      });
-      proc.unref();
-      return { status: "success", message: "Nexus uninstallation started" };
-    } catch (error: any) {
-      console.log("ERROR WHILE UNINSTALLING NEXUS", error.message);
-      return { status: "failed", message: error.message };
-    }
+  ipcMain.handle("nexus-uninstall", async () => {
+    const targetExe = `${process.env.LOCALAPPDATA}/Programs/Nexus/nexus.exe`;
+    const exeToRun = fs.existsSync(targetExe) ? targetExe : "nexus";
+    const { promise } = runNexusWithLogs(exeToRun, ["--uninstall"], mainWindow);
+    return await promise;
   });
 };
 

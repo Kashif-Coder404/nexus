@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { jwtDecode } from "jwt-decode";
 import Navbar from "./Navbar";
 import PairingCard from "./PairingCard";
@@ -78,6 +78,7 @@ export default function PairingPage() {
   const [codeLoading, setCodeLoading] = useState<boolean>(false);
   const [isToggling, setIsToggling] = useState<boolean>(false);
   const [isInstalling, setIsInstalling] = useState<boolean>(false);
+  const isInstallingRef = useRef<boolean>(false);
   const [installProgress, setInstallProgress] = useState<number>(0);
   const [liveLog, setLiveLog] = useState<string>("");
   const [modalLoading, setModalLoading] = useState<boolean>(false);
@@ -101,6 +102,8 @@ export default function PairingPage() {
 
   // Check if nexus.exe is actually installed
   const fetchStatus = useCallback(async () => {
+    if (isInstallingRef.current) return;
+
     // 1. Electron Native Check (if running in desktop app)
     const electronAPI = (
       window as unknown as {
@@ -410,14 +413,15 @@ export default function PairingPage() {
   // Install / Start Nexus
   const handleInstall = async () => {
     setIsInstalling(true);
+    isInstallingRef.current = true;
     setLiveLog("Initializing setup...");
     setInstallProgress(15);
 
     const interval = setInterval(() => {
       setInstallProgress((p) => {
-        if (p >= 85) {
+        if (p >= 80) {
           clearInterval(interval);
-          return 85;
+          return 80;
         }
         return p + 15;
       });
@@ -430,9 +434,37 @@ export default function PairingPage() {
       } else {
         await new Promise((r) => setTimeout(r, 1800));
       }
+
+      setInstallProgress(85);
+      setLiveLog("Starting Nexus background daemon...");
+
+      // Localhost:4100 live hone ka wait karo
+      let isLive = false;
+      let attempts = 0;
+      const maxAttempts = 20;
+
+      while (!isLive && attempts < maxAttempts) {
+        attempts++;
+        setLiveLog(`Connecting to background service... (${attempts})`);
+        try {
+          const res = await fetch("http://localhost:4100/api/pairing-status");
+          if (res.ok) {
+            const data = await res.json();
+            setStatus(data);
+            isLive = true;
+            break;
+          }
+        } catch {
+          // Daemon is starting up
+        }
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
+
       setInstallProgress(100);
-      setLiveLog("Installation complete! Starting service...");
+      setLiveLog(isLive ? "Nexus online & ready!" : "Service started.");
+
       setTimeout(() => {
+        isInstallingRef.current = false;
         setIsInstalling(false);
         setIsDaemonInstalled(true);
         setIsStopped(false);
@@ -440,11 +472,11 @@ export default function PairingPage() {
         try {
           localStorage.setItem("nexus_installed", "true");
         } catch {}
-        fetchStatus();
-      }, 700);
+      }, 500);
     } catch (err) {
       console.error("Install failed:", err);
       setLiveLog("Installation encountered an issue.");
+      isInstallingRef.current = false;
       setIsInstalling(false);
     } finally {
       clearInterval(interval);
@@ -466,7 +498,7 @@ export default function PairingPage() {
 
       {/* ── MAIN WORKSPACE CONTENT ── */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-6 py-6 sm:py-10 flex flex-col justify-center items-center">
-        {!isDaemonInstalled ? (
+        {(!isDaemonInstalled || isInstalling) ? (
           /* View: Install Nexus Hero (Only when nexus.exe is not installed on disk) */
           <InstallCard
             isInstalling={isInstalling}
