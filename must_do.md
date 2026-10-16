@@ -18,6 +18,7 @@
 | ⚪ **TODO** | **6. Dynamic Skills Architecture (MongoDB + LRU)** | `AskAI_OOP.ts`, MongoDB `Skills` | Split 470-line prompt into on-demand skills. Reduce latency and greetings token cost. |
 | ⚪ **TODO** | **7. Native OS Mouse & Key Inputs** | `local-be-v2` | `click_coordinate(x, y)` and `press_key(key)` to bypass GUI installers when CLI flags don't exist. |
 | ⚪ **TODO** | **8. Desktop Electron App & Dual-Release Architecture** | `SetupPage`, Electron, `Local-BE-v2` | SetupPage UI (Install/Uninstall/Update) ➔ Electron Desktop Wrapper ➔ Dual GitHub Releases. |
+| ⚪ **TODO** | **9. WebRTC P2P DataChannel Telemetry (Zero Cloud Bandwidth)** | `liveFeedWs.service.ts`, `companion`, `backend` | Direct encrypted P2P tunnel bypassing HTTPS Mixed Content & PNA with zero Render relay bandwidth. |
 
 ---
 
@@ -187,3 +188,29 @@ Wrap the existing React/Vite `SetupPage` inside Electron:
 Publish two assets per release on GitHub:
 1. **`Nexus-Setup-<version>.exe`**: The complete graphical desktop installer for end users.
 2. **`nexus.exe`**: The standalone C# WinExe companion binary (for headless CLI servers and for Electron's in-place auto-updater).
+
+---
+
+## 6. WebRTC P2P DataChannel Telemetry (Zero Cloud Bandwidth)
+
+### 🛑 The Problem:
+1. **HTTPS Mixed Content & PNA:** Web browsers strictly block public HTTPS sites (`https://nexus-pc-ai.netlify.app`) from connecting to local unencrypted WebSocket endpoints (`ws://192.168.x.x:4100/`). Private Network Access (PNA) blocks it even when insecure content exceptions are toggled.
+2. **Cloud Server Bandwidth Exhaustion:** Relaying high-frequency system telemetry (CPU, GPU, RAM, Thermals every 1-2s) through the Render cloud backend consumes massive server bandwidth, risking free-tier limits.
+3. **Private IP Limitation:** Local IPs change with different networks and are completely unreachable when using cellular data or separate Wi-Fi networks.
+
+### 💡 The Solution (WebRTC DataChannel Tunneling):
+```
+[Browser (Netlify HTTPS)] <─── SDP Signaling (Render: ~1 KB one-time) ───> [Nexus Companion (PC)]
+                                              │
+                      ┌───────────────────────┴───────────────────────┐
+                      ▼                                               ▼
+       Direct Encrypted P2P Tunnel (LAN or STUN/TURN via WebRTC DataChannel)
+         ⚡ Zero Render Cloud Bandwidth
+         ⚡ Zero Mixed Content / PNA Errors
+         ⚡ Real-Time 60 FPS Telemetry Streaming
+```
+
+1. **One-Time Handshake via Cloud:** Render backend only handles the initial WebRTC signaling (`offer`, `answer`, `ice_candidate`) consuming <1 KB total.
+2. **Encrypted Direct P2P Pipe:** Once the handshake completes, Browser and `nexus.exe` communicate directly over an encrypted WebRTC DataChannel.
+3. **Bandwidth:** 0 bytes through Render during active streaming.
+
