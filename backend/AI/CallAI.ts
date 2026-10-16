@@ -1,4 +1,3 @@
-import { callNvidia } from "./Providers/nvidiaAPICall.js";
 import {
   geminiAICall,
   GeminiModelsTypes,
@@ -12,7 +11,7 @@ import { instructions as defaultInstructions } from "./instructions/main.Instruc
 import type { ChatMessageType, GeminiResponse } from "./Types.ts";
 // import { localGeminiAICall } from "./Providers/localGeminiCall.js";
 
-export type AIName = "nvidia" | "gemini" | "tokenrouter" | "local_gemini";
+export type AIName = "gemini" | "tokenrouter" | "local_gemini";
 export type GeminiModels = GeminiModelsTypes;
 export type LocalGeminiModels =
   | "gemini-3.7-flash"
@@ -44,11 +43,6 @@ export type AIProviderParams = {
   // Specific to Gemini / TokenRouter / Local Gemini
   retryCount?: number;
   model?: GeminiModels | TokenRouterModels | LocalGeminiModels;
-
-  // Specific to Nvidia
-  workingOn?: string;
-  aiMsg?: string;
-  command?: string;
 };
 
 export type UnifiedAIResponse = {
@@ -75,55 +69,22 @@ export const callAI = async (
     name = "gemini";
   }
 
-  if (name === "nvidia") {
-    const res = await callNvidia(
-      params.workingOn || "",
-      chatMessages,
-      session,
-      params.aiMsg || "",
-      params.command || "",
-      instructions,
-      isJson,
-    );
-
-    let cmd = res.command || "";
-    let msg = res.aiMsg || "";
-    let workingon = res.workingOn || "";
-    let rawContent: any = msg;
-
-    if (isJson && typeof msg === "string" && msg.trim().startsWith("{")) {
-      try {
-        const parsed = JSON.parse(msg);
-        cmd = parsed.cmd || cmd;
-        msg = parsed.msg || msg;
-        workingon = parsed.workingon || workingon;
-        rawContent = parsed;
-      } catch (e) {
-        // Ignore parsing errors
-      }
-    }
-
-    return {
-      cmd,
-      msg,
-      workingon,
-      success: res.success ?? false,
-      rawContent,
-    };
-  }
-
   if (name === "gemini") {
     const modelType = params.modeltype;
     let res: GeminiResponse = {} as GeminiResponse;
 
+    const hasImageMessage = chatMessages.some((m: any) =>
+      Array.isArray(m?.content),
+    );
+
     try {
-      if (modelType === "live" || params.isLiveModel) {
+      if ((modelType === "live" || params.isLiveModel) && !hasImageMessage) {
         res = await liveGeminiAICall({
           chatMessages,
           retryCount: params.retryCount || 0,
           model:
             (params.model as GeminiModelsTypes) ||
-            "gemini-3.1-flash-live-preview",
+            "gemini-3.8-live",
           instructionString: instructions,
           isJson: isJson,
           keyIndex: geminiKeyIndex,
@@ -133,7 +94,7 @@ export const callAI = async (
         res = await geminiAICall({
           chatMessages,
           retryCount: params.retryCount || 0,
-          model: (params.model as GeminiModelsTypes) || "gemini-3.5-flash-lite",
+          model: (params.model as GeminiModelsTypes) || "gemini-3.7-flash",
           instructionString: instructions,
           isJson: isJson,
           keyIndex: geminiKeyIndex,
@@ -147,30 +108,59 @@ export const callAI = async (
       res = { success: false } as GeminiResponse;
     }
 
-    // Fallback if local or primary call was unsuccessful
+    // Fallback if primary call was unsuccessful
     if (!res || !res.success) {
-      console.warn("[GEMINI FALLBACK] Falling back to local Gemini API...");
-      try {
-        res = await geminiAICall({
-          chatMessages,
-          model: "gemini-3.8-live",
-          instructionString: instructions,
-          retryCount: params.retryCount || 0,
-          isJson: isJson,
-          keyIndex: geminiKeyIndex,
-        });
-      } catch (fallbackErr: any) {
-        console.error(
-          "[GEMINI FALLBACK ERROR]:",
-          fallbackErr?.message || fallbackErr,
+      // 1. Try Gemini 3.8 Live first (only for text turns, never with multimodal images)
+      if (
+        !params.isLiveModel &&
+        params.model !== "gemini-3.8-live" &&
+        !hasImageMessage
+      ) {
+        console.warn("[GEMINI FALLBACK] Retrying with Gemini 3.8 Live...");
+        try {
+          res = await liveGeminiAICall({
+            chatMessages,
+            model: "gemini-3.8-live",
+            instructionString: instructions,
+            retryCount: params.retryCount || 0,
+            isJson: isJson,
+            keyIndex: geminiKeyIndex,
+          });
+        } catch (liveErr: any) {
+          console.warn(
+            "[GEMINI LIVE FALLBACK ERROR]:",
+            liveErr?.message || liveErr,
+          );
+        }
+      }
+
+      // 2. If still unsuccessful, fallback to stable Gemini 3.6 Flash
+      if (!res || !res.success) {
+        console.warn(
+          "[GEMINI FALLBACK] Retrying with stable Gemini 3.6 Flash API...",
         );
-        res = {
-          success: false,
-          content: {
-            msg:
-              fallbackErr?.message || "AI failed to respond. Please try again.",
-          },
-        } as GeminiResponse;
+        try {
+          res = await geminiAICall({
+            chatMessages,
+            model: "gemini-3.6-flash",
+            instructionString: instructions,
+            retryCount: params.retryCount || 0,
+            isJson: isJson,
+            keyIndex: geminiKeyIndex,
+          });
+        } catch (fallbackErr: any) {
+          console.error(
+            "[GEMINI FALLBACK ERROR]:",
+            fallbackErr?.message || fallbackErr,
+          );
+          res = {
+            success: false,
+            content: {
+              msg:
+                fallbackErr?.message || "AI failed to respond. Please try again.",
+            },
+          } as GeminiResponse;
+        }
       }
     }
 

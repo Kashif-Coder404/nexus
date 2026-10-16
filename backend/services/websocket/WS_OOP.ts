@@ -38,7 +38,7 @@ export class ClientSession {
       const parsed = JSON.parse(data.toString());
       //Handle Commands/Messages....
     } catch (error) {
-      console.log("Invalid JSON", error);
+      console.error("Invalid JSON", error);
     }
   }
 
@@ -175,7 +175,7 @@ export class ClientDeviceSession extends ClientSession {
         }
       }
     } catch (error) {
-      console.log("Invalid JSON", error);
+      console.error("Invalid JSON", error);
     }
   }
 

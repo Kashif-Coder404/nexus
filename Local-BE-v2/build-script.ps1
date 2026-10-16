@@ -13,7 +13,3 @@ dotnet publish -c Release -r win-x64 --self-contained `
     -o ./dist
 set-location ..
 
-if (Test-Path "./companion/dist/nexus.exe") {
-    Copy-Item "./companion/dist/nexus.exe" -Destination "./nexus.exe" -Force
-}
-

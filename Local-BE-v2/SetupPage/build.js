@@ -58,18 +58,22 @@ async function main() {
 
     // Step 3: Copy nexus.exe from companion/dist to Local-BE-v2 root
     const distExe = path.resolve(__dirname, '../companion/dist/nexus.exe');
-    const rootExe = path.resolve(__dirname, '../nexus.exe');
-
+    const productionFolder = path.resolve(__dirname, '../production');
+    if (!fs.existsSync(productionFolder)) {
+      fs.mkdirSync(productionFolder);
+    }
+    if (fs.existsSync(productionFolder + "/nexus.exe")) {
+      console.log("Deleting the old exe file...");
+      fs.unlinkSync(productionFolder + "/nexus.exe");
+    }
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    await sleep(1000);
     if (fs.existsSync(distExe)) {
-      fs.copyFileSync(distExe, rootExe);
-      console.log('✔ Copied nexus.exe to Local-BE-v2 root');
+      console.log("Copying the new exe file...")
+      fs.copyFileSync(distExe, productionFolder + "/nexus.exe");
+      console.log('✔ Copied nexus.exe to Local-BE-v2/production');
     }
 
-    const distPdb = path.resolve(__dirname, '../companion/dist/nexus.pdb');
-    const rootPdb = path.resolve(__dirname, '../nexus.pdb');
-    if (fs.existsSync(distPdb)) {
-      fs.copyFileSync(distPdb, rootPdb);
-    }
 
     console.log('Build finished successfully!');
   } catch (error) {

@@ -56,7 +56,7 @@ const getDevicesHandler = async (req: any, res: any) => {
       data: safeDevices,
     });
   } catch (error) {
-    console.log(error);
+    console.error("[DEVICE CONTROLLER ERROR]:", error);
     res.status(500).json({
       success: false,
       message: "Internal Server Error",

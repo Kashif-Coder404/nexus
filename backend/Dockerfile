@@ -17,5 +17,5 @@ COPY . .
 EXPOSE 3100
 
 # Start server using tsx
-CMD ["npm", "run", "dev:server"]
+CMD ["npm", "run", "dev"]
 

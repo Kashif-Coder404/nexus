@@ -99,3 +99,19 @@
 ### 4. Remote Mobile Companion (`nexus_app_v2`)
 - [ ] Sync chat sessions, live execution steps, and task management with the React Native / Expo mobile app.
 - [ ] Biometric confirmation (FaceID / Fingerprint) before executing high-risk system commands remotely.
+
+### 5. Distributed Device Presence, Anti-Flap Debouncing & Offline Schema Reconciliation
+- [ ] **Presence Debouncing (10s Disconnect Grace Period)**:
+  - On companion WebSocket disconnect in `websocket.service.ts`, start a 10-second grace timer before updating MongoDB or broadcasting offline status to web clients.
+  - Cancel the timer if companion reconnects within 10s (saves 95% of database writes on flapping Wi-Fi and eliminates green/gray UI flicker).
+  - Only mark `online: false` and commit `lastSeenAt = new Date()` once the 10-second threshold elapses without reconnection.
+- [ ] **Dual-Timestamp Schema Separation (`UserModel.devices`)**:
+  - `lastSeenAt: Date` — Heartbeat / presence timestamp (updated on genuine disconnect / connection).
+  - `configUpdatedAt: Date` — Configuration timestamp (updated *only* when a human renames the device or changes settings).
+- [ ] **3-Day Security Lease (Abandoned / Stolen Device Cutoff)**:
+  - When companion initiates `{ type: "auth" }`, verify: `Date.now() - device.lastSeenAt <= 3 days`.
+  - Auto-revoke devices inactive for > 3 days, clean MongoDB registration, and reply with `{ type: "device_revoked" }` to force local token wipe and re-pairing.
+- [ ] **Offline Device Name Reconciliation**:
+  - Companion transmits its local `configUpdatedAt` timestamp during `{ type: "auth" }`.
+  - If `companion.configUpdatedAt < device.configUpdatedAt`, cloud backend pushes updated `deviceName` over WebSocket without re-signing JWT or resetting token expiration.
+  - Companion persists updated name to disk (`%APPDATA%\Nexus\deviceToken.json`) and refreshes local dashboard state instantly.

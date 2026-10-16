@@ -3,21 +3,36 @@ import { instructions } from "../instructions/main.Instructions.js";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { GeminiResponse } from "../Types.js";
 import { GoogleGenAI, Modality } from "@google/genai";
+import { extractJSON } from "../Parsers.js";
 import {
+  GEMINI_API_BGMI15,
   GEMINI_API_Don_Acc,
   GEMINI_API_Main_Acc,
+  GEMINI_API_MYLIFE,
+  GEMINI_API_K69,
+  GEMINI_API_COLLGEWISE,
+  GEMINI_API_DIALYUI,
   initializeKeys,
 } from "../../EnvVariables.js";
 await initializeKeys();
-const GEMINI_API_KEYS = [GEMINI_API_Don_Acc, GEMINI_API_Main_Acc].filter(
-  Boolean,
-) as string[];
+export const GEMINI_API_KEYS = [
+  GEMINI_API_Main_Acc,
+  GEMINI_API_Don_Acc,
+  GEMINI_API_BGMI15,
+  GEMINI_API_MYLIFE,
+  GEMINI_API_K69,
+  GEMINI_API_COLLGEWISE,
+  GEMINI_API_DIALYUI,
+].filter(Boolean) as string[];
+
 export type GeminiModelsTypes =
-  | "gemini-3.5-flash-lite"
-  | "gemini-3.5-flash"
-  | "gemini-3.6-flash"
   | "gemini-3.7-flash"
+  | "gemini-3.6-flash"
+  | "gemini-3.5-flash"
+  | "gemini-3.5-flash-lite"
   | "gemini-3.1-flash-lite"
+  | "gemini-3.1-pro"
+  | "gemini-3.1-pro-preview"
   | "gemini-3.1-flash-live-preview"
   | "gemini-3.8-live";
 type GeminiAICallOptions = {
@@ -55,6 +70,11 @@ export const geminiAICall = async ({
     };
   }
 
+  let targetModel = model || "gemini-3.7-flash";
+  if (targetModel === "gemini-3.1-pro") {
+    targetModel = "gemini-3.1-pro-preview";
+  }
+
   const MessageToAI = [
     {
       role: "system",
@@ -66,7 +86,7 @@ export const geminiAICall = async ({
     const response = await axios.post(
       "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       {
-        model: model,
+        model: targetModel,
         messages: MessageToAI,
         temperature: 0.5,
         ...(isJson && {
@@ -88,29 +108,17 @@ export const geminiAICall = async ({
     const messageContent = response.data.choices[0].message.content;
     let parsedContent;
     if (isJson) {
-      let cleanStr = messageContent.trim();
-      if (cleanStr.startsWith("```json")) {
-        cleanStr = cleanStr
-          .replace(/^```json/, "")
-          .replace(/```$/, "")
-          .trim();
-      } else if (cleanStr.startsWith("```")) {
-        cleanStr = cleanStr.replace(/^```/, "").replace(/```$/, "").trim();
-      }
       try {
-        parsedContent = JSON.parse(cleanStr);
-      } catch (parseError) {
-        // Attempt to extract JSON if there's trailing garbage
-        const match = cleanStr.match(/\{[\s\S]*\}/);
-        if (match) {
-          try {
-            parsedContent = JSON.parse(match[0]);
-          } catch (e) {
-            throw parseError;
-          }
-        } else {
-          throw parseError;
-        }
+        parsedContent = extractJSON(messageContent);
+      } catch {
+        parsedContent = null;
+      }
+      if (!parsedContent || typeof parsedContent !== "object") {
+        parsedContent = {
+          cmd: "",
+          msg: messageContent,
+          workingon: "",
+        };
       }
     } else {
       parsedContent = messageContent;
@@ -212,7 +220,7 @@ export const geminiAICall = async ({
 export const liveGeminiAICall = async ({
   chatMessages,
   retryCount = 0,
-  model = "gemini-3.1-flash-live-preview",
+  model = "gemini-3.8-live",
   instructionString = instructions,
   isJson = true,
   keyIndex = 0,
@@ -241,12 +249,15 @@ export const liveGeminiAICall = async ({
   });
 
   return new Promise(async (resolve) => {
-    let fullResponseText = "";
+    let modelTurnText = "";
+    let transcriptionText = "";
 
     try {
+      const liveTargetModel = model || "gemini-3.8-live";
+
       // 1. Establish the real-time bidirectional session
       const session = await ai.live.connect({
-        model: model,
+        model: liveTargetModel,
         config: {
           systemInstruction: {
             parts: [{ text: instructionString }],
@@ -262,13 +273,11 @@ export const liveGeminiAICall = async ({
           },
         },
         callbacks: {
-          onopen: () => {
-            console.log("[GEMINI LIVE] WebSocket connection ready.");
-          },
+          onopen: () => {},
           onmessage: (message: any) => {
             // Collect text transcription if available
             if (message.serverContent?.outputTranscription?.text) {
-              fullResponseText +=
+              transcriptionText +=
                 message.serverContent.outputTranscription.text;
             }
 
@@ -276,7 +285,7 @@ export const liveGeminiAICall = async ({
             if (message.serverContent?.modelTurn?.parts) {
               for (const part of message.serverContent.modelTurn.parts) {
                 if (part.text) {
-                  fullResponseText += part.text;
+                  modelTurnText += part.text;
                 }
               }
             }
@@ -290,9 +299,13 @@ export const liveGeminiAICall = async ({
             console.error("[GEMINI LIVE] Error:", error);
           },
           onclose: async (event: any) => {
-            if (!fullResponseText.trim() && retryCount < maxKeys - 1) {
+            // Prioritize modelTurnText; fallback to audio transcription
+            const textToParse =
+              modelTurnText.trim() || transcriptionText.trim();
+
+            if (!textToParse && retryCount < maxKeys - 1) {
               const nextKeyIndex = (safeKeyIndex + 1) % maxKeys;
-              console.log(
+              console.warn(
                 `[GEMINI LIVE] Empty response / closed early (code ${event?.code}). Retrying with next key index ${nextKeyIndex}... (Attempt ${retryCount + 1}/${maxKeys})`,
               );
               await new Promise((r) => setTimeout(r, 1500));
@@ -309,47 +322,25 @@ export const liveGeminiAICall = async ({
 
             let parsedContent: any;
             if (isJson) {
-              let cleanStr = fullResponseText.trim();
-              if (cleanStr.startsWith("```json")) {
-                cleanStr = cleanStr
-                  .replace(/^```json/, "")
-                  .replace(/```$/, "")
-                  .trim();
-              } else if (cleanStr.startsWith("```")) {
-                cleanStr = cleanStr
-                  .replace(/^```/, "")
-                  .replace(/```$/, "")
-                  .trim();
-              }
               try {
-                parsedContent = JSON.parse(cleanStr);
-              } catch (parseError) {
-                const match = cleanStr.match(/\{[\s\S]*\}/);
-                if (match) {
-                  try {
-                    parsedContent = JSON.parse(match[0]);
-                  } catch (e) {
-                    parsedContent = {
-                      cmd: "",
-                      msg: fullResponseText,
-                      workingon: "",
-                    };
-                  }
-                } else {
-                  parsedContent = {
-                    cmd: "",
-                    msg: fullResponseText,
-                    workingon: "",
-                  };
-                }
+                parsedContent = extractJSON(textToParse);
+              } catch {
+                parsedContent = null;
+              }
+              if (!parsedContent || typeof parsedContent !== "object") {
+                parsedContent = {
+                  cmd: "",
+                  msg: textToParse,
+                  workingon: "",
+                };
               }
             } else {
-              parsedContent = fullResponseText;
+              parsedContent = textToParse;
             }
 
             resolve({
               content: parsedContent,
-              success: Boolean(fullResponseText.trim()),
+              success: Boolean(textToParse),
               usedKeyIndex: safeKeyIndex,
             });
           },

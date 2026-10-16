@@ -94,6 +94,7 @@ if (args.Length > 0)
 
     if (command is "--stop")
     {
+        SetupServices.EnsureElevated(args);
         SetupServices.StopRunningInstances();
         Console.WriteLine("[Nexus] All running instances stopped.");
         return;
@@ -101,6 +102,7 @@ if (args.Length > 0)
 
     if (command is "--start")
     {
+        SetupServices.EnsureElevated(args);
         var running = Process.GetProcessesByName("nexus").FirstOrDefault(p => p.Id != Environment.ProcessId);
         if (running != null)
         {
@@ -149,6 +151,7 @@ if (args.Length > 0)
 
     if (command is "--service")
     {
+        SetupServices.EnsureElevated(args);
         // Internal flag: proceed to start the web server!
     }
     else
@@ -296,12 +299,18 @@ app.MapGet("/api/pairing-status", async () =>
         _ = WebSocketClientService.SendPairingInitAsync();
     }
 
+    bool isInstalled = File.Exists(SetupServices.TargetExePath);
+
     return Results.Ok(new
     {
         success = true,
         isConnected = DeviceStateManager.IsConnectedToBackend,
         isPaired = !string.IsNullOrEmpty(token),
         isEnable = DeviceStateManager.IsServiceEnabled,
+        isInstalled,
+        installPath = SetupServices.TargetExePath,
+        token,
+        deviceName = Environment.MachineName,
         code,
         expiresat = DeviceStateManager.CodeExpiresAt?.ToString("o"),
         remainingSeconds = DeviceStateManager.RemainingSeconds,
@@ -413,6 +422,13 @@ app.MapPost("/api/uninstall", async (IHostApplicationLifetime lifetime) =>
     });
     return Results.Ok(new { success = true, message = "Uninstaller launched successfully." });
 });
+app.MapPost("/api/revoke", async () =>
+{
+    await WebSocketClientService.SendRevokeAsync();
+    string freshCode = DeviceStateManager.GenerateNewPairingCode();
+    await WebSocketClientService.SendPairingInitAsync();
+    return Results.Ok(new { success = true, message = "Device pairing revoked." });
+});
 
 // 4. Existing Test & Debug Endpoints
 app.MapPost("/test-cmd", async (RunCommandDto body) =>
@@ -498,7 +514,7 @@ app.MapGet("/capture-screen", () =>
     var (success, base64, msg) = CaptureScreenShots.CaptureScreen();
     return Results.Ok(new { success, imageBase64 = base64, message = msg });
 });
-
+app.MapGet("/status", () => Results.Ok(new { success = true, message = "Nexus is running..." }));
 // Bind to 0.0.0.0 to accept LAN connections from other devices and browsers
 
 app.Run("http://0.0.0.0:4100");

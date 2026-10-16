@@ -14,7 +14,8 @@ export const getRealMessage = async (
       session: "",
       instructions: middleMsgInstructions,
       isJson: false,
-      model: "gemini-3.1-flash-live-preview",
+      isLiveModel: true,
+      model: "gemini-3.8-live",
       retryCount: 1,
     });
     return response.msg || response.rawContent || fallback;

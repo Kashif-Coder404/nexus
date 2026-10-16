@@ -7,7 +7,7 @@ export async function connectDB() {
     console.log("DB CONNECTED SUCCESSFULLY! ✅");
   } catch (error: any) {
     console.error("[DATABASE] ERROR WHILE CONNECTING TO DB 🫠");
-    console.log("[DATABASE ERROR]: ", error);
+    console.error("[DATABASE ERROR]: ", error);
   }
 }
 

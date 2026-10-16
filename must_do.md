@@ -17,6 +17,8 @@
 | ⚪ **TODO** | **5. AI Prompt Guardrails & Winget Rules** | `main.Instructions.ts` | Negative rules: ban modal dialogs, ban infinite ping, prefer `winget --disable-interactivity`. |
 | ⚪ **TODO** | **6. Dynamic Skills Architecture (MongoDB + LRU)** | `AskAI_OOP.ts`, MongoDB `Skills` | Split 470-line prompt into on-demand skills. Reduce latency and greetings token cost. |
 | ⚪ **TODO** | **7. Native OS Mouse & Key Inputs** | `local-be-v2` | `click_coordinate(x, y)` and `press_key(key)` to bypass GUI installers when CLI flags don't exist. |
+| ⚪ **TODO** | **8. Desktop Electron App & Dual-Release Architecture** | `SetupPage`, Electron, `Local-BE-v2` | SetupPage UI (Install/Uninstall/Update) ➔ Electron Desktop Wrapper ➔ Dual GitHub Releases. |
+| ⚪ **TODO** | **9. WebRTC P2P DataChannel Telemetry (Zero Cloud Bandwidth)** | `liveFeedWs.service.ts`, `companion`, `backend` | Direct encrypted P2P tunnel bypassing HTTPS Mixed Content & PNA with zero Render relay bandwidth. |
 
 ---
 
@@ -139,3 +141,76 @@ Add native OS interaction tools:
 1. `click_coordinate(x, y)`: Simulates left/right mouse click via Windows `SendInput`.
 2. `press_key(key)`: Simulates `Enter`, `Tab`, `Space`, or `Escape`.
 Nexus can use `capture_screen` to see the prompt, click `[Yes]`, and successfully finish the installation/uninstallation!
+
+---
+
+## 6. Desktop Electron App, SetupPage & Dual-Release Architecture
+
+### 🛑 The Problem:
+1. `nexus.exe` currently runs as a silent background daemon with a local browser tab (`http://localhost:4100`). Users prefer a dedicated, native desktop app window rather than opening a browser tab.
+2. If `nexus.exe` is uninstalled or offline, the web page cannot easily restart or re-download it without manual PowerShell scripts.
+3. Users need an intuitive desktop workflow with system tray management, 1-click install/uninstall, and silent auto-updates.
+
+### 💡 The Solution (Modular Manager + Daemon Pipeline):
+
+```
+SetupPage (UI States) ➔ Electron Desktop Wrapper ➔ Dual GitHub Release Assets (Installer + WinExe)
+```
+
+#### Step 1: `SetupPage` UI Enhancements (`Local-BE-v2/SetupPage`)
+Add explicit UI states to manage the daemon lifecycle:
+- **Offline / Uninstalled State**:
+  - Show clean hero card with **`[Install / Start Nexus]`** primary button.
+  - Download / installation progress bar with percentage.
+- **Active & Paired State**:
+  - Green status badge, live pairing code, command toggle switch.
+  - Secondary controls: **`[Stop Service]`** and **`[Uninstall Daemon]`**.
+- **Update Check & Banner**:
+  - Automatically queries latest GitHub release tag against local version.
+  - Shows **`[Update to vX.X.X]`** banner with 1-click in-place update.
+
+#### Step 2: Electron Desktop Wrapper
+Wrap the existing React/Vite `SetupPage` inside Electron:
+- **Main Process (`main.js`)**:
+  - Creates the desktop window and system tray icon.
+  - IPC handler for `nexus.exe --start`, `nexus.exe --stop`, and `nexus.exe --uninstall`.
+  - Stream-downloader to download latest `nexus.exe` from GitHub releases directly into `%LOCALAPPDATA%\Programs\Nexus\nexus.exe`.
+- **System Tray**:
+  - Minimizes to tray on close with quick menu: `Open Dashboard`, `Status: Active`, `Restart Companion`, `Quit`.
+
+#### Step 3: Packaging & Installer (`electron-builder` / NSIS)
+- Build a production-ready Windows installer: **`Nexus-Setup.exe`**.
+- Bundles the initial `nexus.exe` inside `resources/` for immediate offline installation on first launch.
+- **NSIS Custom Uninstaller Hook (`installer.nsh`)**:
+  - When the user uninstalls the Electron app via Windows Settings, the uninstaller automatically executes `nexus.exe --uninstall` and deletes the Scheduled Task to prevent leftover zombie background services.
+
+#### Step 4: Dual GitHub Releases
+Publish two assets per release on GitHub:
+1. **`Nexus-Setup-<version>.exe`**: The complete graphical desktop installer for end users.
+2. **`nexus.exe`**: The standalone C# WinExe companion binary (for headless CLI servers and for Electron's in-place auto-updater).
+
+---
+
+## 6. WebRTC P2P DataChannel Telemetry (Zero Cloud Bandwidth)
+
+### 🛑 The Problem:
+1. **HTTPS Mixed Content & PNA:** Web browsers strictly block public HTTPS sites (`https://nexus-pc-ai.netlify.app`) from connecting to local unencrypted WebSocket endpoints (`ws://192.168.x.x:4100/`). Private Network Access (PNA) blocks it even when insecure content exceptions are toggled.
+2. **Cloud Server Bandwidth Exhaustion:** Relaying high-frequency system telemetry (CPU, GPU, RAM, Thermals every 1-2s) through the Render cloud backend consumes massive server bandwidth, risking free-tier limits.
+3. **Private IP Limitation:** Local IPs change with different networks and are completely unreachable when using cellular data or separate Wi-Fi networks.
+
+### 💡 The Solution (WebRTC DataChannel Tunneling):
+```
+[Browser (Netlify HTTPS)] <─── SDP Signaling (Render: ~1 KB one-time) ───> [Nexus Companion (PC)]
+                                              │
+                      ┌───────────────────────┴───────────────────────┐
+                      ▼                                               ▼
+       Direct Encrypted P2P Tunnel (LAN or STUN/TURN via WebRTC DataChannel)
+         ⚡ Zero Render Cloud Bandwidth
+         ⚡ Zero Mixed Content / PNA Errors
+         ⚡ Real-Time 60 FPS Telemetry Streaming
+```
+
+1. **One-Time Handshake via Cloud:** Render backend only handles the initial WebRTC signaling (`offer`, `answer`, `ice_candidate`) consuming <1 KB total.
+2. **Encrypted Direct P2P Pipe:** Once the handshake completes, Browser and `nexus.exe` communicate directly over an encrypted WebRTC DataChannel.
+3. **Bandwidth:** 0 bytes through Render during active streaming.
+

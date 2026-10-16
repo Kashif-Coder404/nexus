@@ -2,19 +2,36 @@ import { useUserCredentials } from "@/app/store/useUserCredentials";
 import useChat from "@/app/store/useChat";
 import { useDevices } from "@/app/store/useDevices";
 let activeSocket: WebSocket | null = null;
+let reconnectTimer: NodeJS.Timeout | null = null;
 const sleep = async (time: number) => {
   return new Promise((resolve) => setTimeout(resolve, time));
 };
 
-const WebSocketInit = async () => {
+const WebSocketInit = async (): Promise<WebSocket | undefined> => {
   if (typeof window === "undefined") return;
 
   const token = useUserCredentials.getState().token;
   if (!token) return;
 
+  // Prevent multiple parallel connecting or open sockets
+  if (
+    activeSocket &&
+    (activeSocket.readyState === WebSocket.OPEN ||
+      activeSocket.readyState === WebSocket.CONNECTING)
+  ) {
+    return activeSocket;
+  }
+
+  // Clear any existing reconnect timer
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
   const wsUrl =
     process.env.NEXT_PUBLIC_WS_URL || "wss://nexus-v2-e38m.onrender.com/";
   const ws = new WebSocket(`${wsUrl}`);
+  activeSocket = ws;
 
   ws.onopen = () => {
     activeSocket = ws;
@@ -199,24 +216,20 @@ const WebSocketInit = async () => {
       // ignore parse error
     }
   };
-  ws.onclose = async () => {
+  ws.onclose = () => {
+    if (activeSocket === ws) {
+      activeSocket = null;
+    }
     useChat.getState().setWorkingOn(null);
-    console.log("[WS] Reconnecting in 5s...");
-    await sleep(5000);
-    WebSocketInit();
-  };
-  let retryInterval: NodeJS.Timeout;
-  ws.onerror = (error) => {
-    retryInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        clearInterval(retryInterval);
-        return;
-      }
-      ws.close();
+    console.log("[WS] Disconnected. Reconnecting in 5s...");
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
       WebSocketInit();
-      clearInterval(retryInterval);
     }, 5000);
-    console.error("WebSocket error:", error);
+  };
+  ws.onerror = (error) => {
+    console.error("[WS] Connection error:", error);
+    // onclose will handle reconnection cleanly; do not trigger duplicates here
   };
   return ws;
 };

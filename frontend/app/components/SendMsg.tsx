@@ -24,39 +24,39 @@ export type ModelType = {
 
 const Models: ModelType[] = [
   {
-    provider: "local_gemini",
-    name: "gemini-3.7-flash",
-    displayName: "gemini-3.7-flash",
-    isLiveModel: false,
-  },
-  {
-    provider: "local_gemini",
+    provider: "gemini",
     name: "gemini-3.6-flash",
-    displayName: "gemini-3.6-flash",
+    displayName: "Nexus (Stable)",
     isLiveModel: false,
   },
   {
-    provider: "local_gemini",
+    provider: "gemini",
+    name: "gemini-3.7-flash",
+    displayName: "Nexus (Smart)",
+    isLiveModel: false,
+  },
+  {
+    provider: "gemini",
     name: "gemini-3.1-pro",
-    displayName: "gemini-3.1-pro",
+    displayName: "Nexus (Pro)",
     isLiveModel: false,
   },
   {
     provider: "gemini",
     name: "gemini-3.5-flash-lite",
-    displayName: "gemini-3.5-flash-lite",
+    displayName: "Nexus (Fast)",
     isLiveModel: false,
   },
   {
     provider: "gemini",
     name: "gemini-3.1-flash-live-preview",
-    displayName: "gemini-3.1-flash-live-preview",
+    displayName: "Nexus (Experimental)",
     isLiveModel: true,
   },
   {
     provider: "gemini",
     name: "gemini-3.8-live",
-    displayName: "gemini-3.8-live",
+    displayName: "Nexus (Latest)",
     isLiveModel: true,
   },
 ];
@@ -147,7 +147,7 @@ const SendMsg = ({ sendingUrl }: { sendingUrl?: string }) => {
 
           {/* Dropdown Menu */}
           <div
-            className={`absolute bottom-full left-0 mb-2 w-64 bg-brand-surface/95 border border-brand-border/60 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl z-50 ${isModelSelectOpen ? "opacity-100 visible" : "opacity-0 invisible transition-all duration-200"}`}
+            className={`absolute z-[999] bottom-full left-0 mb-2 w-64 bg-brand-surface/95 border border-brand-border/60 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl ${isModelSelectOpen ? "opacity-100 visible" : "opacity-0 invisible transition-all duration-200"}`}
           >
             <div className="p-1">
               {Models.map((m) => {

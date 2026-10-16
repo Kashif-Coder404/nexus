@@ -1,28 +1,69 @@
-import {
-  Check,
-  Copy,
-  Laptop,
-  LoaderCircle,
-  RefreshCw,
-  Trash2,
-  CheckCircle2,
-  Power,
-  ShieldCheck,
-  AlertTriangle,
-} from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { jwtDecode } from "jwt-decode";
+import Navbar from "./Navbar";
+import PairingCard from "./PairingCard";
+import ExecutionControls from "./ExecutionControls";
+import InstallCard from "./InstallCard";
+import ConfirmModal from "./ConfirmModal";
+import UpdateModal from "./UpdateModal";
 
 interface StatusResponse {
-  isConnected: boolean; // Is local agent connected to Cloud?
-  isPaired: boolean; // Is this PC paired or unpaired?
-  isEnable?: boolean; // Can AI execute commands?
-  code?: string; // The 6-character pairing code (e.g. "A1B2C3")
+  isConnected: boolean;
+  isPaired: boolean;
+  isInstalled?: boolean;
+  installPath?: string;
+  isEnable?: boolean;
+  code?: string;
+  token?: string | null;
+  deviceName?: string;
   remainingSeconds?: number;
   cooldown?: number;
   pairingError?: string;
+  version?: string;
 }
 
-const PairingPage = () => {
+interface ModalConfig {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  dangerLevel: "danger" | "warning";
+  action: () => Promise<void>;
+}
+
+interface DeviceTokenPayload {
+  deviceId?: string;
+  device_id?: string;
+  id?: string;
+  userId?: string;
+  user_id?: string;
+  sub?: string;
+  email?: string;
+  deviceName?: string;
+  device_name?: string;
+}
+
+// Safely decode JWT token payload using jwt-decode npm package
+function parseDeviceToken(rawToken?: string | null): DeviceTokenPayload | null {
+  if (!rawToken) return null;
+  try {
+    let token = rawToken.trim();
+    if (token.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(token);
+        token = parsed.token || parsed.deviceToken || token;
+      } catch {}
+    }
+    token = token.replace(/^Bearer\s+/i, "").trim();
+    if (!token) return null;
+    return jwtDecode<DeviceTokenPayload>(token);
+  } catch (err) {
+    console.warn("[JWT Decode]: Failed to decode token:", err);
+    return null;
+  }
+}
+
+export default function PairingPage() {
   const [status, setStatus] = useState<StatusResponse | null>({
     isConnected: false,
     isPaired: false,
@@ -30,25 +71,108 @@ const PairingPage = () => {
     code: "",
     remainingSeconds: 0,
   });
-  const [codeLoading, setCodeLoading] = useState<boolean>(false);
-  const [cooldown, setCooldown] = useState<number>(0);
-  const [copied, setCopied] = useState<boolean>(false);
-  const [isRevoking, setIsRevoking] = useState<boolean>(false);
-  const [isToggling, setIsToggling] = useState<boolean>(false);
-  const [isStopped, setIsStopped] = useState<boolean>(false);
 
+  const [isDaemonInstalled, setIsDaemonInstalled] = useState<boolean>(true);
+  const [isStopped, setIsStopped] = useState<boolean>(false);
+  const [isStarting, setIsStarting] = useState<boolean>(false);
+  const [codeLoading, setCodeLoading] = useState<boolean>(false);
+  const [isToggling, setIsToggling] = useState<boolean>(false);
+  const [isInstalling, setIsInstalling] = useState<boolean>(false);
+  const [installProgress, setInstallProgress] = useState<number>(0);
+  const [liveLog, setLiveLog] = useState<string>("");
+  const [modalLoading, setModalLoading] = useState<boolean>(false);
+
+  // Custom Confirmation Modal state
+  const [modalConfig, setModalConfig] = useState<ModalConfig>({
+    isOpen: false,
+    title: "",
+    message: "",
+    confirmLabel: "",
+    dangerLevel: "danger",
+    action: async () => {},
+  });
+
+  // Update Modal state
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
+  const [updateStatus, setUpdateStatus] = useState<string>(
+    "Checking GitHub releases...",
+  );
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
+
+  // Check if nexus.exe is actually installed
   const fetchStatus = useCallback(async () => {
+    // 1. Electron Native Check (if running in desktop app)
+    const electronAPI = (
+      window as unknown as {
+        nexusAPI?: { isInstalled: () => Promise<boolean> };
+      }
+    ).nexusAPI;
+
+    let isElectronInstalled: boolean | null = null;
+    if (electronAPI?.isInstalled) {
+      try {
+        const exists = await electronAPI.isInstalled();
+        isElectronInstalled = Boolean(exists);
+        setIsDaemonInstalled(isElectronInstalled);
+        try {
+          localStorage.setItem(
+            "nexus_installed",
+            isElectronInstalled ? "true" : "false",
+          );
+        } catch {}
+        if (!isElectronInstalled) return;
+      } catch {
+        // fallback
+      }
+    }
+
+    // 2. Vite Dev Server Middleware Check (can inspect disk even when port 4100 is stopped)
+    try {
+      const devRes = await fetch("/__api/check-installed");
+      if (devRes.ok) {
+        const devData = await devRes.json();
+        if (devData.isInstalled !== undefined) {
+          setIsDaemonInstalled(Boolean(devData.isInstalled));
+        }
+      }
+    } catch {
+      // not in dev server or endpoint unavailable
+    }
+
+    // 3. Fetch local API status from C# daemon
     try {
       const res = await fetch("http://localhost:4100/api/pairing-status");
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
-        if (typeof data.cooldown === "number" && data.cooldown > 0) {
-          setCooldown((prev) => (prev <= 0 ? data.cooldown : prev));
-        }
+        const reallyInstalled =
+          data.isInstalled !== undefined ? Boolean(data.isInstalled) : true;
+        setIsDaemonInstalled(reallyInstalled);
+        setIsStopped(false);
+        try {
+          localStorage.setItem("nexus_installed", "true");
+          if (data.token) {
+            localStorage.setItem("nexus_device_token", data.token);
+          }
+        } catch {}
+      } else {
+        setIsStopped(true);
       }
     } catch {
-      // Agent offline
+      // Local daemon is offline or stopped
+      setIsStopped(true);
+
+      // Agar Electron native check pehle ho chuka hai, to offline hone par isDaemonInstalled ko false mat banao
+      if (isElectronInstalled === null) {
+        try {
+          const cached = localStorage.getItem("nexus_installed");
+          if (cached === "true") {
+            setIsDaemonInstalled(true);
+          } else {
+            setIsDaemonInstalled(false);
+          }
+        } catch {}
+      }
     }
   }, []);
 
@@ -58,30 +182,57 @@ const PairingPage = () => {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  // Local Countdown Timer for Pairing Code Expiry
+  // Subscribe to live installer / background logs from Electron
   useEffect(() => {
-    if (!status?.remainingSeconds || status.remainingSeconds <= 0) return;
-    const timer = setInterval(() => {
-      setStatus((prev) =>
-        prev && prev.remainingSeconds && prev.remainingSeconds > 0
-          ? { ...prev, remainingSeconds: prev.remainingSeconds - 1 }
-          : prev,
-      );
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [status?.remainingSeconds]);
+    const electronAPI = (window as any).nexusAPI;
+    if (electronAPI?.onLog) {
+      const unsub = electronAPI.onLog((log: string) => {
+        if (log && log.trim()) {
+          setLiveLog(log.trim());
+        }
+      });
+      return () => {
+        if (typeof unsub === "function") unsub();
+      };
+    }
+  }, []);
 
-  // Cooldown countdown timer for code regeneration debounce
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => {
-      setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
+  // Read active token from daemon status or persistent localStorage
+  const activeToken = useMemo(() => {
+    if (status?.token) return status.token;
+    try {
+      return localStorage.getItem("nexus_device_token");
+    } catch {
+      return null;
+    }
+  }, [status?.token]);
 
+  // Decode JWT payload whenever activeToken changes
+  const decodedJwt = useMemo(() => {
+    return parseDeviceToken(activeToken);
+  }, [activeToken]);
+
+  // Device ID: Normalized deviceId from token, or strictly "Not Paired" if unpaired
+  const deviceId = useMemo(() => {
+    if (!activeToken && !status?.isPaired) return "Not Paired";
+    const id = decodedJwt?.deviceId || decodedJwt?.device_id || decodedJwt?.id;
+    return id || (status?.isPaired ? "Paired" : "Not Paired");
+  }, [activeToken, status?.isPaired, decodedJwt]);
+
+  // Extracted User Display (Email or User ID)
+  const userDisplay = useMemo(() => {
+    if (decodedJwt?.email) return decodedJwt.email;
+    const uid = decodedJwt?.userId || decodedJwt?.user_id || decodedJwt?.sub;
+    if (uid) return `UID-${uid.slice(0, 10)}`;
+    return status?.isPaired || activeToken ? "Paired Account" : "Unassigned";
+  }, [decodedJwt, status?.isPaired, activeToken]);
+
+  // Real Device Name (in place of TSNS)
+  const deviceName = status?.deviceName || "Nexus Host";
+
+  // Regenerate pairing code
   const handleRegenerate = async () => {
-    if (codeLoading || cooldown > 0) return;
+    if (codeLoading || !status?.isConnected) return;
     setCodeLoading(true);
     try {
       const res = await fetch("http://localhost:4100/api/generate-code", {
@@ -92,9 +243,6 @@ const PairingPage = () => {
         setStatus((prev) =>
           prev ? { ...prev, code: data.code, remainingSeconds: 300 } : null,
         );
-        setCooldown(data.cooldown ?? 15);
-      } else if (data.cooldown) {
-        setCooldown(data.cooldown);
       }
     } catch (err) {
       console.error("Failed to regenerate code:", err);
@@ -103,13 +251,12 @@ const PairingPage = () => {
     }
   };
 
+  // Copy code
   const handleCopy = async () => {
     if (!status?.code) return;
-    const fullCode = `NX-${status.code.replaceAll("NX-", "")}`;
+    const fullCode = `NX-${status.code.replace(/^NX-?/i, "")}`;
     try {
       await navigator.clipboard.writeText(fullCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       // clipboard error
     }
@@ -134,269 +281,248 @@ const PairingPage = () => {
     }
   };
 
-  // Stop Server (Graceful Shutdown)
-  const handleStopServer = async () => {
-    if (!confirm("Stop the Nexus background agent?")) return;
-    try {
-      await fetch("http://localhost:4100/api/stop-server", { method: "POST" });
-      setIsStopped(true);
-    } catch {
-      setIsStopped(true);
-    }
+  // Trigger Custom Modal for UNINSTALL
+  const onRequestUninstall = () => {
+    setModalConfig({
+      isOpen: true,
+      title: "Uninstall & Wipe Nexus Companion?",
+      message:
+        "This action will completely unregister the Windows background service, remove scheduled tasks, wipe local device tokens, and erase your device from the cloud. You will have to re-install and re-pair your machine.",
+      confirmLabel: "Yes, Uninstall & Wipe",
+      dangerLevel: "danger",
+      action: async () => {
+        try {
+          await (window as any).nexusAPI?.uninstallNexusFile();
+          setStatus(null);
+          setIsDaemonInstalled(false);
+          try {
+            localStorage.removeItem("nexus_installed");
+            localStorage.removeItem("nexus_device_token");
+          } catch {}
+        } catch (err) {
+          console.error("Uninstall failed:", err);
+        }
+      },
+    });
   };
 
-  // Disconnect & Revoke
-  const handleUninstall = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to disconnect this device from your cloud account? Stored tokens will be removed.",
-      )
-    ) {
-      return;
-    }
+  // Trigger Custom Modal for REVOKE
+  const onRequestRevoke = () => {
+    setModalConfig({
+      isOpen: true,
+      title: "Revoke Device Pairing?",
+      message:
+        "This action will immediately disconnect this computer from your active cloud account and destroy stored session credentials. Autonomous command execution will halt, and you will need to generate a new pairing code to re-link.",
+      confirmLabel: "Yes, Revoke Pairing",
+      dangerLevel: "danger",
+      action: async () => {
+        try {
+          await fetch("http://localhost:4100/api/revoke", { method: "POST" });
+          setStatus((prev) =>
+            prev ? { ...prev, isPaired: false, token: null, code: "" } : null,
+          );
+          try {
+            localStorage.removeItem("nexus_device_token");
+          } catch {}
+        } catch (err) {
+          console.error("Revoke failed:", err);
+        }
+      },
+    });
+  };
 
-    setIsRevoking(true);
+  // Trigger Custom Modal for STOP SERVICE
+  const onRequestStopServer = () => {
+    setModalConfig({
+      isOpen: true,
+      title: "Stop Companion Daemon?",
+      message:
+        "This will cleanly shut down the Nexus background agent running on port 4100. Cloud connection will pause until you restart the daemon.",
+      confirmLabel: "Stop Service",
+      dangerLevel: "warning",
+      action: async () => {
+        try {
+          await (window as any).nexusAPI?.stopNexus();
+          setIsStopped(true);
+        } catch {
+          setIsStopped(true);
+        }
+      },
+    });
+  };
+
+  // Start Companion Daemon again in place of stop button
+  const handleStartServer = async () => {
+    setIsStarting(true);
     try {
-      await fetch("http://localhost:4100/api/uninstall", { method: "POST" });
-      setStatus((prev) =>
-        prev ? { ...prev, isPaired: false, code: "" } : null,
-      );
-      alert("Device unlinked successfully.");
+      const electronAPI = (
+        window as unknown as { nexusAPI?: { startNexus: () => Promise<void> } }
+      ).nexusAPI;
+      if (electronAPI?.startNexus) {
+        await electronAPI.startNexus();
+      } else {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      setIsStopped(false);
+      fetchStatus();
     } catch (err) {
-      console.error("Failed to revoke device:", err);
+      console.error("Failed to start service:", err);
     } finally {
-      setIsRevoking(false);
+      setIsStarting(false);
     }
   };
 
-  const formatTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  // Execute modal action
+  const handleExecuteModalAction = async () => {
+    setModalLoading(true);
+    try {
+      await modalConfig.action();
+    } finally {
+      setModalLoading(false);
+      setModalConfig((prev) => ({ ...prev, isOpen: false }));
+    }
   };
 
-  // STOPPED VIEW
-  if (isStopped) {
-    return (
-      <div className="w-full max-w-sm p-6 rounded-xl bg-zinc-900 border border-zinc-800 text-center space-y-3">
-        <div className="w-12 h-12 mx-auto rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400">
-          <Power className="w-6 h-6" />
-        </div>
-        <h2 className="text-base font-semibold text-white">Agent Stopped</h2>
-        <p className="text-xs text-zinc-400">
-          The background agent on port 4100 has been shut down. Restart the
-          application to reconnect.
-        </p>
-      </div>
-    );
-  }
+  // Check for updates
+  const handleCheckUpdate = async () => {
+    setShowUpdateModal(true);
+    setUpdateStatus("Checking GitHub releases...");
+    try {
+      const res = await fetch(
+        "https://api.github.com/repos/Kashif-Coder404/nexus-v2/releases/latest",
+      );
+      if (res.ok) {
+        const release = await res.json();
+        setLatestVersion(release.tag_name || "v2.6.2");
+        if (release.tag_name && release.tag_name !== "v2.6.2") {
+          setUpdateStatus(`New release available: ${release.tag_name}!`);
+        } else {
+          setUpdateStatus("You are running the latest version (v2.6.2).");
+        }
+      } else {
+        setUpdateStatus("Nexus v2.6.2 — Current release is active.");
+      }
+    } catch {
+      setUpdateStatus("Nexus v2.6.2 — Active release.");
+    }
+  };
+
+  // Install / Start Nexus
+  const handleInstall = async () => {
+    setIsInstalling(true);
+    setLiveLog("Initializing setup...");
+    setInstallProgress(15);
+
+    const interval = setInterval(() => {
+      setInstallProgress((p) => {
+        if (p >= 85) {
+          clearInterval(interval);
+          return 85;
+        }
+        return p + 15;
+      });
+    }, 500);
+
+    try {
+      const electronAPI = (window as any).nexusAPI;
+      if (electronAPI?.installNexusFile) {
+        await electronAPI.installNexusFile();
+      } else {
+        await new Promise((r) => setTimeout(r, 1800));
+      }
+      setInstallProgress(100);
+      setLiveLog("Installation complete! Starting service...");
+      setTimeout(() => {
+        setIsInstalling(false);
+        setIsDaemonInstalled(true);
+        setIsStopped(false);
+        setLiveLog("");
+        try {
+          localStorage.setItem("nexus_installed", "true");
+        } catch {}
+        fetchStatus();
+      }, 700);
+    } catch (err) {
+      console.error("Install failed:", err);
+      setLiveLog("Installation encountered an issue.");
+      setIsInstalling(false);
+    } finally {
+      clearInterval(interval);
+    }
+  };
+
+  const displayCode = status?.code
+    ? status.code.replace(/^NX-?/i, "").trim()
+    : "";
 
   return (
-    <div className="w-full max-w-md p-6 rounded-xl bg-zinc-900 border border-zinc-800 shadow-xl flex flex-col space-y-5 text-white">
-      {/* Header */}
-      <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-purple-400">
-            <Laptop className="w-4 h-4" />
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold text-white">
-              Nexus Companion
-            </h1>
-            <span className="text-[11px] text-zinc-500 font-mono">
-              Port 4100
-            </span>
-          </div>
-        </div>
+    <div className="min-h-screen w-full flex flex-col justify-between bg-[#080711] text-white select-none">
+      {/* ── TOP DESKTOP NAVBAR (Status Indicator Removed) ── */}
+      <Navbar
+        isDaemonInstalled={isDaemonInstalled}
+        onOpenUpdate={handleCheckUpdate}
+        onRequestUninstall={onRequestUninstall}
+      />
 
-        <div
-          className={`px-2.5 py-1 rounded-full text-[11px] font-medium flex items-center gap-1.5 border ${
-            status?.isConnected
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-              : "bg-rose-500/10 border-rose-500/30 text-rose-400"
-          }`}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              status?.isConnected ? "bg-emerald-400" : "bg-rose-400"
-            }`}
+      {/* ── MAIN WORKSPACE CONTENT ── */}
+      <main className="flex-1 w-full max-w-4xl mx-auto px-6 py-6 sm:py-10 flex flex-col justify-center items-center">
+        {!isDaemonInstalled ? (
+          /* View: Install Nexus Hero (Only when nexus.exe is not installed on disk) */
+          <InstallCard
+            isInstalling={isInstalling}
+            installProgress={installProgress}
+            onInstall={handleInstall}
+            liveLog={liveLog}
           />
-          {status?.isConnected ? "Cloud Online" : "Cloud Offline"}
-        </div>
-      </div>
+        ) : (
+          /* Main Dashboard UI: Kept even when stopped, with Start button in place of Stop */
+          <div className="w-full space-y-6">
+            <PairingCard
+              deviceName={deviceName}
+              deviceId={deviceId}
+              userDisplay={userDisplay}
+              isConnected={Boolean(status?.isConnected && !isStopped)}
+              isPaired={Boolean(status?.isPaired)}
+              isEnable={Boolean(status?.isEnable)}
+              displayCode={displayCode}
+              isToggling={isToggling}
+              codeLoading={codeLoading}
+              onCopy={handleCopy}
+              onRegenerate={handleRegenerate}
+              onRequestRevoke={onRequestRevoke}
+              onToggleSwitch={handleToggleSwitch}
+            />
 
-      {/* Error Alert */}
-      {status?.pairingError && (
-        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2">
-          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-          <span>{status.pairingError}</span>
-        </div>
-      )}
-
-      {/* ───────────────── PAIRED STATE ───────────────── */}
-      {status?.isPaired ? (
-        <div className="space-y-4">
-          <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
-            <div className="text-left">
-              <h2 className="text-sm font-semibold text-emerald-300">
-                Device Linked & Ready
-              </h2>
-              <p className="text-xs text-emerald-400/80">
-                Connected and authenticated with your cloud account.
-              </p>
-            </div>
+            <ExecutionControls
+              isStopped={isStopped}
+              isStarting={isStarting}
+              onRequestStopServer={onRequestStopServer}
+              onStartServer={handleStartServer}
+            />
           </div>
+        )}
+      </main>
 
-          {/* Killswitch Control Row */}
-          <div className="p-3.5 rounded-lg bg-zinc-800/60 border border-zinc-700/60 flex items-center justify-between">
-            <div className="space-y-0.5 text-left">
-              <div className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-purple-400" />
-                Remote Command Execution
-              </div>
-              <p className="text-[11px] text-zinc-400">
-                {status?.isEnable
-                  ? "Allowed: commands execute automatically."
-                  : "Paused: incoming commands will be rejected."}
-              </p>
-            </div>
+      {/* ── BOTTOM DANGER CONFIRMATION MODAL ── */}
+      <ConfirmModal
+        isOpen={modalConfig.isOpen}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        confirmLabel={modalConfig.confirmLabel}
+        dangerLevel={modalConfig.dangerLevel}
+        loading={modalLoading}
+        onConfirm={handleExecuteModalAction}
+        onCancel={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
 
-            {/* Clean toggle switch */}
-            <button
-              type="button"
-              onClick={handleToggleSwitch}
-              disabled={isToggling}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                status?.isEnable ? "bg-purple-600" : "bg-zinc-700"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
-                  status?.isEnable ? "translate-x-5" : "translate-x-0"
-                }`}
-              />
-            </button>
-          </div>
-
-          {/* Action Buttons: Stop & Revoke */}
-          <div className="flex gap-2 pt-2 border-t border-zinc-800">
-            <button
-              type="button"
-              onClick={handleStopServer}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium border border-zinc-700 transition"
-            >
-              <Power className="w-3.5 h-3.5 text-zinc-400" />
-              <span>Stop Agent</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleUninstall}
-              disabled={isRevoking}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-medium border border-rose-500/30 transition disabled:opacity-50"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>{isRevoking ? "Revoking..." : "Disconnect"}</span>
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* ───────────────── UNPAIRED STATE ───────────────── */
-        <div className="space-y-4">
-          <div className="p-4 rounded-lg bg-zinc-800/40 border border-zinc-800 text-center space-y-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-              {status?.isConnected ? (
-                `Temporary Pairing Code`
-              ) : (
-                <span className="flex justify-center items-center gap-2">
-                  Connecting to Backend{" "}
-                  <RefreshCw className="w-6 h-6 animate-spin" />
-                </span>
-              )}
-            </span>
-
-            <div className="text-4xl sm:text-5xl font-mono font-bold tracking-widest text-purple-300 py-1">
-              {status?.isConnected ? `${status?.code || "NX-----"}` : "NX-----"}
-            </div>
-
-            {status?.remainingSeconds ? (
-              <p className="text-[11px] text-zinc-400 font-mono">
-                Expires in {formatTime(status.remainingSeconds)}
-              </p>
-            ) : null}
-          </div>
-
-          {/* Buttons: Copy & Regenerate */}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleCopy}
-              disabled={
-                !status?.isConnected || !status?.code || status?.code === "------"
-              }
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-sm transition cursor-pointer disabled:opacity-40"
-            >
-              {copied ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-              <span>{copied ? "Copied!" : "Copy Code"}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRegenerate}
-              disabled={!status?.isConnected || codeLoading || cooldown > 0}
-              className="flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${codeLoading ? "animate-spin" : ""}`}
-              />
-              <span>
-                {codeLoading
-                  ? "..."
-                  : cooldown > 0
-                    ? `Wait ${cooldown}s`
-                    : "New Code"}
-              </span>
-            </button>
-          </div>
-
-          {/* 3 Step Instruction Guide */}
-          <div className="p-3 rounded-lg bg-zinc-800/30 border border-zinc-800/80 text-left space-y-1.5">
-            <span className="text-[11px] font-semibold text-zinc-300 block">
-              How to link this machine:
-            </span>
-            <ol className="list-decimal list-inside space-y-1 text-xs text-zinc-400">
-              <li>Open Nexus web app on your phone or browser.</li>
-              <li>
-                Go to <strong className="text-zinc-200">Devices</strong> →{" "}
-                <strong className="text-zinc-200">Pair New Device</strong>.
-              </li>
-              <li>Enter the code above to finish linking.</li>
-            </ol>
-          </div>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80 text-[11px] text-zinc-500 font-mono">
-        <span>
-          {status?.isPaired ? (
-            <span className="text-emerald-400">● Ready for commands</span>
-          ) : (
-            <span className="flex items-center gap-1.5">
-              <LoaderCircle className="w-3 h-3 animate-spin text-purple-400" />
-              Awaiting pairing...
-            </span>
-          )}
-        </span>
-        <span>v2.6.1</span>
-      </div>
+      {/* ── UPDATE CHECK MODAL ── */}
+      <UpdateModal
+        isOpen={showUpdateModal}
+        currentVersion="v2.6.2"
+        latestVersion={latestVersion}
+        statusText={updateStatus}
+        onClose={() => setShowUpdateModal(false)}
+      />
     </div>
   );
-};
-
-export default PairingPage;
+}

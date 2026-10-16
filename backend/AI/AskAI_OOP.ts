@@ -1,15 +1,21 @@
 import { SessionModel } from "../db/schema/session-schema.js";
 import { getChat, setChat } from "../services/chat.history.service.js";
+import { uploadScreenshotToCloudinary } from "../services/claudinary.service.js";
 import {
   activeSessions,
   sendToUser,
 } from "../services/websocket/websocket.service.js";
 import { callAI, ModelType } from "./CallAI.js";
+import { testingInstructions } from "./instructions/main.instrcutions.testing.js";
 
 import {
   instructions,
   system_warning,
 } from "./instructions/main.Instructions.js";
+import {
+  context_register,
+  get_context,
+} from "./instructions/Tools/contextRegistry.js";
 import { commandParser } from "./Parsers.js";
 import { ChatMessageType } from "./Types.js";
 import { CommandExecutionType } from "./Types/AIResponseTypes.js";
@@ -21,7 +27,8 @@ import {
 export class AskAI {
   public static activeRunners = new Map<string, AskAI>();
   private isAborted = false;
-
+  private context: Map<string, string> = new Map<string, string>();
+  private systemInstructions = testingInstructions("");
   public abort() {
     activeSessions.delete(this.sessionId);
     this.isAborted = true;
@@ -79,14 +86,13 @@ export class AskAI {
           .slice(-40)
           .join("\n") + " [Last 40 Lines]",
       success: execution.isSuccess + `(${execution.exitCode})`,
+      image:
+        execution.image || (execution as any).imageBase64
+          ? "[IMAGE]"
+          : "[NO IMAGE]",
     }));
-    const imageBase64 =
-      message.imageBase64 && message.imageBase64.length > 0
-        ? "[Image Present]"
-        : "[No Image]";
     return JSON.stringify({
       msg: message.content,
-      imageBase64: imageBase64,
       executions: reducedExecutions,
     });
   }
@@ -151,7 +157,7 @@ export class AskAI {
       return `🔍 Searching files for "${param?.expected_name || ""}"...`;
     } else if (action === "search_app") {
       return `🚀 Searching for app "${param?.name || ""}"...`;
-    } else if (action === "in_built") {
+    } else if (action === "terminal" || action === "in_built") {
       const cmdText =
         typeof param === "object" && param !== null
           ? param.command || JSON.stringify(param)
@@ -196,18 +202,33 @@ export class AskAI {
         ...this.commandRunningMsgs,
       ];
       this.BroadCastTheState();
-      console.log("MODEL USE: ", this.model);
       this.aiResponse = await callAI(this.model.provider, {
         userId: this.userId,
         chatMessages: ChatMsgs,
         session: this.sessionId,
-        instructions,
+        instructions: this.systemInstructions,
         isJson: true,
         isLiveModel: this.model.isLiveModel,
         retryCount: 0,
         model: this.model.name,
       });
       const { cmd, workingon, msg, success } = this.aiResponse;
+      let action = "";
+      if (typeof cmd === "object" && cmd !== null) {
+        action = cmd.action || "";
+      } else if (typeof cmd === "string" && cmd.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(cmd);
+          action = parsed.action || "";
+        } catch {
+          action = "";
+        }
+      }
+      if (action === "get_context") {
+        await this.GetContextForAi(cmd);
+        continue;
+      }
+
       this.BroadCastTheState(workingon, msg, cmd);
       this.commandRunningMsgs.push({
         role: "assistant",
@@ -258,6 +279,42 @@ export class AskAI {
       this.retries++;
     }
   }
+  private async GetContextForAi(cmd: any) {
+    const targetName =
+      typeof cmd.param === "object" ? cmd.param?.name : cmd.param;
+    const flagName = (targetName || "").toUpperCase().trim();
+    const manual = get_context(targetName);
+    if (!manual.success) {
+      this.commandRunningMsgs.push({
+        role: "user",
+        content: manual.error || "Failed to retrieve context",
+      });
+      return;
+    }
+    if (
+      this.context.has(flagName) ||
+      this.systemInstructions.includes(`[FULL CONTEXT ABOUT ${flagName} END]`)
+    ) {
+      this.commandRunningMsgs.push({
+        role: "user",
+        content: `The full instructions for "${targetName}" are ALREADY loaded in your prompt above. Do not call get_context again. Proceed to execute the command directly.`,
+      });
+      return;
+    }
+    const wrappedManualString: string = `
+          [FULL CONTEXT ABOUT ${flagName} START]
+          ${manual.context}
+          [FULL CONTEXT ABOUT ${flagName} END]
+        `;
+    // 1. Silently append manual to system instructions for future turns
+    this.context.set(flagName, `\n${wrappedManualString}`);
+    //Solved the problem of putting context everytime at the end
+    this.systemInstructions = testingInstructions(
+      [...this.context.values()].join("\n"),
+    );
+
+    //AI retries with the full context about the get_context
+  }
   private async ExecuteStep(
     command: CommandTypes,
     ChatMsgs: ChatMessageType[],
@@ -277,8 +334,14 @@ export class AskAI {
       (commandOutput as any)?.cwd ||
       (typeof params === "object" && (params as any)?.cwd) ||
       "";
+    let stepImageUrl = "";
     if (commandOutput.imageBase64) {
-      this.capturedImage = commandOutput.imageBase64;
+      const uploadedUrl = await uploadScreenshotToCloudinary(
+        commandOutput.imageBase64,
+      );
+      this.capturedImage = uploadedUrl;
+      stepImageUrl = uploadedUrl;
+      commandOutput.imageBase64 = "";
     }
     const RawOutput = commandOutput.terminalOutput || "";
     const RawError = commandOutput.terminalError || "";
@@ -291,7 +354,7 @@ export class AskAI {
     this.terminalError =
       "[Last 40 Lines]\n" + CleanedError + "\n[End of Last 40 Lines]";
 
-    const StepExecution = {
+    const StepExecution: CommandExecutionType = {
       steps: this.executions.length + 1,
       cmd: {
         action: action,
@@ -304,7 +367,7 @@ export class AskAI {
       exitCode: commandOutput.exitCode?.toString() || "",
       duration: stepDuration,
       cwd: currentCwd,
-      imageBase64: commandOutput.imageBase64 || "",
+      image: stepImageUrl,
     };
     this.executions.push(StepExecution); // Push to exections to show in the Frontend + Save to DB
     const actionDesc = this.ExplainAction(action, params);
@@ -360,7 +423,6 @@ export class AskAI {
         role: "assistant",
         content: finalMsg,
         executions: this.executions || [],
-        imageBase64: this.capturedImage,
         workedSeconds: totalWorkedSeconds,
       },
     ];

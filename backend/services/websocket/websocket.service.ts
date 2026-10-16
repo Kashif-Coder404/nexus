@@ -17,7 +17,6 @@ import {
   PendingTask,
 } from "./Types.js";
 import { JwtPayload } from "jsonwebtoken";
-import { askAI } from "../../AI/AskAI.js";
 import { AskAI } from "../../AI/AskAI_OOP.js";
 
 export const activeSessions = new Map<string, ActiveSessions>();
@@ -155,12 +154,11 @@ const initWebsocket = (server: Server) => {
       req.headers["Authorization"] ||
       queryToken;
     const ipHeader = req.headers["ipaddress"] || req.headers["ipAddress"];
-    console.log("IP ADDRESS: ", ipHeader);
     if (authHeader) {
       await connectDevice(ws, authHeader, ipHeader as string);
     }
     resetWatchdog(ws);
-
+ 
     ws.on("message", async (event: any) => {
       try {
         const data = event.toString();
@@ -355,19 +353,10 @@ const initWebsocket = (server: Server) => {
             const currUserId = ws.userId;
             const { content, behaviour = "friendly", model } = parsedData;
             let targetSessionId = parsedData.sessionId;
-
-            console.log("[WS chat_send] Received:", {
-              userId: currUserId,
-              sessionId: targetSessionId,
-              content,
-              behaviour,
-              model,
-            });
-
             if (!content || !content.toString().trim()) break;
 
             const defaultModel = {
-              provider: "local_gemini",
+              provider: "gemini",
               name: "gemini-3.7-flash",
               isLiveModel: false,
             };
@@ -547,7 +536,7 @@ const initWebsocket = (server: Server) => {
             break;
           }
           default:
-            console.log(`[WS] Unhandled event type: ${type}`);
+            console.warn(`[WS] Unhandled event type: ${type}`);
             break;
         }
       } catch (err: any) {

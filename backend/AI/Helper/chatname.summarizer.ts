@@ -7,13 +7,13 @@ const chatSummarize = async (chatMessage: any): Promise<string> => {
     isJson: false,
     instructions: chatnameInstructions,
     session: "",
-    isLiveModel: false,
-    model: "gemini-3.1-flash-live-preview",
+    isLiveModel: true,
+    model: "gemini-3.8-live",
   });
   //   console.log(summarized);
   if (summarized.success === false) {
-    console.log(
-      "Failed To Put Title with live model , retrying with flash lite",
+    console.warn(
+      "[CHAT TITLE] Live model title generation failed, retrying with flash lite...",
     );
   } else {
     return summarized.rawContent || summarized.msg;
@@ -24,7 +24,7 @@ const chatSummarize = async (chatMessage: any): Promise<string> => {
     instructions: chatnameInstructions,
     session: "",
     isLiveModel: false,
-    model: "gemini-3.1-flash-lite",
+    model: "gemini-3.5-flash-lite",
   });
   if (summarized2.success === false) {
     return chatMessage[0].content.substring(0, 25);

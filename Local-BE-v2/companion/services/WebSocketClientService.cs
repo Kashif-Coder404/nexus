@@ -351,6 +351,7 @@ public class WebSocketClientService : BackgroundService
                             int limit = peekParam?["last_lines"]?.GetValue<int>() ?? 50;
                             response = ExecuteServices.PeekTask(targetTaskId, limit);
                             break;
+                        case "terminal":
                         case "in_built":
                         default:
                             RunCommandDto? cmdDto = null;

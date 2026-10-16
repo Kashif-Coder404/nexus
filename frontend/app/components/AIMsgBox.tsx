@@ -18,7 +18,7 @@ export interface ExecutionStep {
   terminalError?: string;
   duration?: string;
   cwd?: string;
-  imageBase64?: string;
+  image?: string;
 }
 
 export interface AiData {
@@ -141,7 +141,21 @@ const AIMsgBox = ({
     }
   }
 
-  const lastAIMsg: string = messageText;
+  let lastAIMsg: string = messageText;
+  if (
+    typeof lastAIMsg === "string" &&
+    lastAIMsg.includes('"cmd"') &&
+    lastAIMsg.includes('"msg"')
+  ) {
+    const salvaged = lastAIMsg.match(/"msg"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/);
+    if (salvaged) {
+      try {
+        lastAIMsg = JSON.parse('"' + salvaged[1] + '"');
+      } catch {
+        lastAIMsg = salvaged[1];
+      }
+    }
+  }
   const isRecent =
     !data.timestamp || Date.now() - new Date(data.timestamp).getTime() < 15000;
   const displayedContent = useTypewriter(lastAIMsg, 12, isLatest && isRecent);
@@ -152,15 +166,16 @@ const AIMsgBox = ({
       ? parsedContentObj.executions
       : [];
   const capturedImages = executions
-    .filter((step) => step.imageBase64)
+    .filter((step) => step.image)
     .map((step) => {
-      if (step.imageBase64)
-        return {
-          step: step.steps,
-          src: step.imageBase64.startsWith("data:")
-            ? step.imageBase64
-            : `data:image/png;base64,${step.imageBase64}`,
-        };
+      const imgVal = step.image || "";
+      return {
+        step: step.steps,
+        src:
+          imgVal.startsWith("data:") || imgVal.startsWith("http")
+            ? imgVal
+            : `data:image/png;base64,${imgVal}`,
+      };
     });
 
   useEffect(() => {
@@ -204,7 +219,7 @@ const AIMsgBox = ({
       {/* Avatar column */}
 
       {/* Content column — flex-1 min-w-0 prevents overflow */}
-      <div className="flex flex-col flex-1 min-w-0 gap-2">
+      <div className="flex flex-col min-w-0 gap-2  w-full">
         <div className="relative shrink-0 pt-0.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-brand-border/60 bg-gradient-to-br from-brand-surface to-brand/20 shadow-[0_0_16px_rgba(168,85,247,0.25)]">
             <Bot className="h-4 w-4 text-brand-hover shrink-0" />
@@ -235,11 +250,13 @@ const AIMsgBox = ({
         {/* AI message bubble */}
         <div
           ref={msgRef}
-          className="my-2 text-xl leading-7 text-zinc-100  wrap-break-word overflow-hidden"
+          className="my-2 text-xl leading-7 text-zinc-100 overflow-hidden"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {String(displayedContent)}
-          </ReactMarkdown>
+          <pre className="whitespace-pre-wrap">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {String(displayedContent)}
+            </ReactMarkdown>
+          </pre>
         </div>
 
         {/* Execution steps */}

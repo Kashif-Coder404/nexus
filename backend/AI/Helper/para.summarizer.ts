@@ -41,14 +41,24 @@ export const summarizerCall = async (
   ];
 
   try {
-    const geminiSummaryResponse = await callAI("gemini", {
+    let geminiSummaryResponse = await callAI("gemini", {
       chatMessages: SummaryMessages,
       session: session,
       instructions: summarizeInstructions,
       isJson: false,
-      isLiveModel: true,
-      model: "gemini-3.1-flash-live-preview",
+      model: "gemini-3.5-flash",
     });
+
+    if (!geminiSummaryResponse || !geminiSummaryResponse.success) {
+      console.warn("[PARA SUMMARIZER] Retrying with backup model...");
+      geminiSummaryResponse = await callAI("gemini", {
+        chatMessages: SummaryMessages,
+        session: session,
+        instructions: summarizeInstructions,
+        isJson: false,
+        model: "gemini-3.6-flash",
+      });
+    }
 
     if (!geminiSummaryResponse.success) {
       return {

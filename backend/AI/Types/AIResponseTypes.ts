@@ -1,9 +1,4 @@
-export type CallNvidiaReturnType = {
-  aiMsg: string;
-  command: string;
-  workingOn: string;
-  success?: boolean;
-};
+
 export type GeminiResponse = {
   content: {
     cmd: string;
@@ -34,5 +29,5 @@ export type CommandExecutionType = {
   exitCode?: string;
   duration?: string;
   cwd?: string;
-  imageBase64?: string;
+  image?: string;
 };

@@ -11,11 +11,10 @@ const activeSessions = new Set<string>();
 export const sendMessage = async (req: any, res: any) => {
   const defaultModel: ModelType = {
     provider: "gemini",
-    name: "gemini-3.5-flash-lite",
+    name: "gemini-3.6-flash",
     isLiveModel: false,
   };
   const { content, behaviour = "friendly", model = defaultModel } = req.body;
-  console.log(content, behaviour, model);
   const userId = req.userId;
   const session = req.sessionId;
   console.log(`[CHAT] User: ${userId} | Session: ${session}`);
