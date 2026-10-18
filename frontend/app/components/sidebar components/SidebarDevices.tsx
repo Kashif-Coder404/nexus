@@ -41,17 +41,14 @@ export default function SidebarDevices() {
         },
       });
       const data = await res.json();
-      if (data.success) {
-        useDevices
-          .getState()
-          .setDevices(
-            useDevices.getState().devices.filter((d) => d.id !== deviceId),
-          );
+      if (data.success || res.status === 404) {
+        useDevices.getState().removeDevice(deviceId);
       } else {
         console.error("[REVOKE DEVICE FAILED]:", data.message);
       }
     } catch (err: any) {
       console.error("[REVOKE DEVICE ERROR]:", err.message);
+      useDevices.getState().removeDevice(deviceId);
     }
   };
 
@@ -60,16 +57,9 @@ export default function SidebarDevices() {
   }, [devices]);
 
   useEffect(() => {
-    if (user?.devices && devices.length === 0) {
-      useDevices.getState().setDevices(
-        user.devices.map((d: any) => ({
-          id: d._id,
-          deviceName: d.deviceName,
-          online: false,
-        })),
-      );
-    }
-  }, [user?.devices]);
+    // Request fresh devices from MongoDB on mount
+    requestDevices();
+  }, []);
 
   return (
     <Dropdown

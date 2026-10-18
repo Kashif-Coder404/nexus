@@ -7,7 +7,7 @@ const ending_part: string = `
 Every response must be raw JSON:
 {
   "cmd": {
-    "action": "terminal | search_app | launch_app | search | system_info | capture_screen | memory_read | memory_write | get_context",
+    "action": "terminal | search_app | launch_app | search | system_info | capture_screen | memory_read | memory_write | get_context | get_devices",
     "param": { ... }
   },
   "msg": "Clear progress message for the user",

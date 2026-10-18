@@ -165,7 +165,10 @@ const PairDevice = ({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ pairingcode: cleanCode }),
+        body: JSON.stringify({
+          pairingcode: cleanCode,
+          pairingCode: cleanCode,
+        }),
       });
 
       const data = await res.json();

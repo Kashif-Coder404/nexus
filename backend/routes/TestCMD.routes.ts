@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { sendCmdRequest } from "../services/websocket/websocket.service.js";
+import { WebSocketService } from "../services/websocket/WS_OOP.js";
 
 const router = Router();
 
@@ -26,8 +26,27 @@ const testCMD = async (req: any, res: any) => {
     Number(body.timeoutMs) ||
     (body.timeoutSeconds ? Number(body.timeoutSeconds) * 1000 : 30000);
 
+  const userDevices = WebSocketService.deviceClients.get(userId);
+  const targetDeviceId =
+    body.deviceId ||
+    (userDevices && userDevices.size > 0
+      ? Array.from(userDevices.keys())[0]
+      : "");
+
+  if (!targetDeviceId) {
+    return res.status(404).json({
+      success: false,
+      message: "No active companion device found for this user.",
+    });
+  }
+
   try {
-    const result = await sendCmdRequest(userId, cmdPayload, timeoutMs);
+    const result = await WebSocketService.sendCmdRequest(
+      userId,
+      targetDeviceId,
+      cmdPayload,
+      timeoutMs,
+    );
     return res.status(200).json({
       success: true,
       data: result,

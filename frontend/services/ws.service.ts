@@ -36,6 +36,7 @@ const WebSocketInit = async (): Promise<WebSocket | undefined> => {
   ws.onopen = () => {
     activeSocket = ws;
     ws.send(JSON.stringify({ type: "auth", token }));
+    ws.send(JSON.stringify({ type: "get_devices" }));
   };
   ws.onmessage = (event) => {
     try {
@@ -93,8 +94,9 @@ const WebSocketInit = async (): Promise<WebSocket | undefined> => {
           return;
         }
         useChat.getState().setMiddleMsg(null);
-        if (payload.data?.workingon) {
-          useChat.getState().setWorkingOn(payload.data.workingon);
+        const nextWorking = payload.data?.workingon || payload.data?.workingOn;
+        if (nextWorking) {
+          useChat.getState().setWorkingOn(nextWorking);
         }
         if (payload.data?.executions) {
           useChat.getState().setLiveExecutions(payload.data.executions);
@@ -149,9 +151,11 @@ const WebSocketInit = async (): Promise<WebSocket | undefined> => {
         const currentSession = useChat.getState().session;
         if (payload.sessionId === currentSession) {
           if (payload.isRunning && payload.data) {
-            useChat
-              .getState()
-              .setWorkingOn(payload.data.workingon || "Nexus is working...");
+            const nextWorking =
+              payload.data.workingon ||
+              payload.data.workingOn ||
+              "Nexus is working...";
+            useChat.getState().setWorkingOn(nextWorking);
             useChat.getState().setLiveExecutions(payload.data.executions || []);
             if (payload.data.userMessage) {
               const chatList = useChat.getState().chat;
@@ -236,8 +240,18 @@ const WebSocketInit = async (): Promise<WebSocket | undefined> => {
 export const requestDevices = () => {
   if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
     activeSocket.send(JSON.stringify({ type: "get_devices" }));
+  } else if (activeSocket && activeSocket.readyState === WebSocket.CONNECTING) {
+    activeSocket.addEventListener(
+      "open",
+      () => {
+        try {
+          activeSocket?.send(JSON.stringify({ type: "get_devices" }));
+        } catch {}
+      },
+      { once: true },
+    );
   } else {
-    console.warn("WebSocket not connected");
+    WebSocketInit();
   }
 };
 

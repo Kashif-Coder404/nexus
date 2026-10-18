@@ -179,7 +179,11 @@ export const callAI = async (
     } else if (actualContent && typeof actualContent === "object") {
       cmd = contentObj.cmd || "";
       msg = contentObj.msg || contentObj.message || contentObj.text || "";
-      workingon = contentObj.workingon || "";
+      workingon =
+        contentObj.workingon ||
+        contentObj.workingOn ||
+        contentObj.working_on ||
+        "";
     }
 
     return {
@@ -205,7 +209,11 @@ export const callAI = async (
     return {
       cmd: actualContent.cmd || "",
       msg: actualContent.msg || "",
-      workingon: actualContent.workingon || "",
+      workingon:
+        (actualContent as any)?.workingon ||
+        (actualContent as any)?.workingOn ||
+        (actualContent as any)?.working_on ||
+        "",
       success: res.success,
       rawContent: actualContent,
     };

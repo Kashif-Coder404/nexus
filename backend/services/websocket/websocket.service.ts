@@ -158,7 +158,7 @@ const initWebsocket = (server: Server) => {
       await connectDevice(ws, authHeader, ipHeader as string);
     }
     resetWatchdog(ws);
- 
+
     ws.on("message", async (event: any) => {
       try {
         const data = event.toString();

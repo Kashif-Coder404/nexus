@@ -1,7 +1,7 @@
 import { callAI } from "../CallAI.js";
 import { chatnameInstructions } from "../instructions/chatname.instructions.js";
 
-const chatSummarize = async (chatMessage: any): Promise<string> => {
+const chatTitleSummarizer = async (chatMessage: any): Promise<string> => {
   const summarized = await callAI("gemini", {
     chatMessages: chatMessage || [],
     isJson: false,
@@ -31,4 +31,4 @@ const chatSummarize = async (chatMessage: any): Promise<string> => {
   }
   return summarized2.rawContent || summarized2.msg;
 };
-export default chatSummarize;
+export default chatTitleSummarizer;

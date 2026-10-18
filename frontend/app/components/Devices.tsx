@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Device, useDevices } from "../store/useDevices";
 import { useUserCredentials } from "../store/useUserCredentials";
 import { livewebsocket } from "@/services/liveFeedWs.service";
@@ -11,9 +11,7 @@ import {
   Wifi,
   User,
   Laptop,
-  Radio,
   Pencil,
-  Trash2,
   Minus,
   Dot,
   Flame,
@@ -22,9 +20,7 @@ import {
   Activity,
   Gauge,
   Disc,
-  Zap,
 } from "lucide-react";
-import { IconSettingsPause, IconStatusChange } from "@tabler/icons-react";
 
 export interface SystemDiskInfo {
   name: string;
@@ -144,17 +140,14 @@ const Devices = ({ device }: { device: Device }) => {
         },
       });
       const data = await res.json();
-      if (data.success) {
-        useDevices
-          .getState()
-          .setDevices(
-            useDevices.getState().devices.filter((d) => d.id !== device.id),
-          );
+      if (data.success || res.status === 404) {
+        useDevices.getState().removeDevice(device.id);
       } else {
         console.error("[REVOKE DEVICE FAILED]:", data.message);
       }
     } catch (err: any) {
       console.error("[REVOKE DEVICE ERROR]:", err.message);
+      useDevices.getState().removeDevice(device.id);
     } finally {
       setIsRevoking(false);
     }

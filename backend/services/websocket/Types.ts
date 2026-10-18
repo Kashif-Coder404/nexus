@@ -1,4 +1,8 @@
 import { WebSocket } from "ws";
+import { CommandExecutionType } from "../../AI/Types/AIResponseTypes.js";
+import { ClientSession } from "./WS_OOP.js";
+
+export type ClientTabs = Set<ClientSession>;
 
 export interface CustomWebSocket extends WebSocket {
   isAlive?: boolean;
@@ -125,6 +129,75 @@ export interface WSPongMsg {
 export interface WSRevokeResponseMsg {
   type: "RevokeResponse";
 }
+export interface WSStopedResponse {
+  type: "stoped_response";
+  sessionId: string;
+}
+
+export interface WSNewUserMessage {
+  type: "new_user_message";
+  sessionId: string;
+  message: {
+    role: "user";
+    content: string;
+    timestamp: string;
+  };
+}
+
+export interface WSBackgroundRunningMsg {
+  type: "background_running";
+  taskId: string;
+  msg: string;
+  sessionId?: string;
+}
+
+export interface WSFinalAIMsg {
+  type: "ai_done";
+  sessionId: string;
+  data: {
+    workingon: "";
+    message: {
+      role: "assistant";
+      content: {
+        lastAIMsg: string;
+        lastCMD: string;
+        terminal: string;
+        terminalError: string;
+        executions: CommandExecutionType[] | [];
+        imageBase64: string;
+        workedSeconds: number;
+      };
+      executions: CommandExecutionType[] | [];
+      imageBase64?: string;
+      workedSeconds: number;
+    };
+  };
+}
+export interface WSAIDataMsg {
+  type: "ai_data";
+  sessionId: string;
+  data: {
+    workingon: string;
+    workingOn?: string;
+    msg: string;
+    cmd: string;
+    executions: CommandExecutionType[] | [];
+  };
+}
+
+export interface WSSessionStateMsg {
+  type: "session_state";
+  sessionId: string;
+  isRunning: boolean;
+  data?: {
+    workingon?: string;
+    workingOn?: string;
+    executions?: CommandExecutionType[] | [];
+    userMessage?: string;
+    middleMsg?: string;
+  };
+}
+
 // Messages specifically sent to Companion Devices:
 export type ClientDeviceOutboundPayload =
   | WSRunCmdMsg
@@ -144,7 +217,13 @@ export type ClientSessionOutboundPayload =
   | WSCmdChunkMsg
   | WSTaskFinishedMsg
   | WSTaskPromotedMsg
-  | WSDeviceRemovedMsg;
+  | WSDeviceRemovedMsg
+  | WSStopedResponse
+  | WSNewUserMessage
+  | WSBackgroundRunningMsg
+  | WSFinalAIMsg
+  | WSAIDataMsg
+  | WSSessionStateMsg;
 
 // Generic fallback if needed
 export type OutboundWSPayload =

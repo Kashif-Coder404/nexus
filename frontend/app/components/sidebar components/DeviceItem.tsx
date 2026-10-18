@@ -2,6 +2,8 @@ import React from "react";
 import { DropdownItem } from "../Dropdown";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useDevices } from "../../store/useDevices";
+
 interface DeviceItemProps {
   data: {
     id: string;
@@ -18,17 +20,55 @@ const DeviceItem = ({ data, onRevoke }: DeviceItemProps) => {
   const online = data.online;
   const service = data.service;
   const router = useRouter();
+  const selectedDeviceId = useDevices((state) => state.selectedDeviceId);
+  const setSelectedDeviceId = useDevices((state) => state.setSelectedDeviceId);
+  const isSelected = selectedDeviceId === id;
+
   const handleSelectDevice = () => {
-    router.push("/devices");
+    if (online) {
+      setSelectedDeviceId(id);
+    } else {
+      router.push("/devices");
+    }
   };
   return (
     <DropdownItem className="group" key={id} onClick={handleSelectDevice}>
-      <span
-        className="font-semibold text-sm sm:text-base truncate max-w-[130px]"
-        title={name}
-      >
-        {name}
-      </span>
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (online) setSelectedDeviceId(id);
+          }}
+          disabled={!online}
+          className={`shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${
+            isSelected
+              ? "border-brand-glow bg-brand/40 shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+              : online
+                ? "border-zinc-500 hover:border-brand-border cursor-pointer"
+                : "border-zinc-700 opacity-30 cursor-not-allowed"
+          }`}
+          title={
+            online
+              ? isSelected
+                ? "Active Target Device"
+                : "Click to select as target"
+              : "Device offline (cannot select)"
+          }
+        >
+          {isSelected && (
+            <div className="w-1.5 h-1.5 rounded-full bg-brand-glow" />
+          )}
+        </button>
+        <span
+          className={`font-semibold text-sm sm:text-base truncate max-w-[120px] ${
+            isSelected ? "text-brand-glow" : "text-zinc-200"
+          }`}
+          title={name}
+        >
+          {name}
+        </span>
+      </div>
       <div className="flex items-center shrink-0">
         <span
           className={`text-xs shrink-0 transition-colors ${

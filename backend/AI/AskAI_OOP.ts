@@ -1,10 +1,7 @@
 import { SessionModel } from "../db/schema/session-schema.js";
 import { getChat, setChat } from "../services/chat.history.service.js";
 import { uploadScreenshotToCloudinary } from "../services/claudinary.service.js";
-import {
-  activeSessions,
-  sendToUser,
-} from "../services/websocket/websocket.service.js";
+import { WebSocketService } from "../services/websocket/WS_OOP.js";
 import { callAI, ModelType } from "./CallAI.js";
 import { testingInstructions } from "./instructions/main.instrcutions.testing.js";
 
@@ -30,7 +27,7 @@ export class AskAI {
   private context: Map<string, string> = new Map<string, string>();
   private systemInstructions = testingInstructions("");
   public abort() {
-    activeSessions.delete(this.sessionId);
+    WebSocketService.activeSessions.delete(this.sessionId);
     this.isAborted = true;
     AskAI.activeRunners.delete(this.sessionId);
   }
@@ -39,6 +36,7 @@ export class AskAI {
   private sessionId: string;
   private userMessage: string;
   private model: ModelType;
+  private deviceId: string = "";
 
   private retries = 0;
   private aiResponse: any = null;
@@ -62,11 +60,13 @@ export class AskAI {
     session: string,
     userMessage: string,
     model: ModelType,
+    deviceId?: string,
   ) {
     this.userId = userId;
     this.sessionId = session;
     this.userMessage = userMessage;
     this.model = model;
+    this.deviceId = deviceId || "";
   }
   private BuildContent(message: ChatMessageType) {
     if (message.role === "user" || message.executions?.length === 0) {
@@ -135,20 +135,22 @@ export class AskAI {
     msg: string = "",
     cmd?: string,
   ) {
-    sendToUser(this.userId, {
+    const status = workingOn || this.workingOn || "Working...";
+    WebSocketService.sendToClient(this.userId, {
       type: "ai_data",
       sessionId: this.sessionId,
       data: {
-        workingon: workingOn,
+        workingon: status,
+        workingOn: status,
         msg: msg,
         cmd:
           cmd !== undefined ? cmd : this.command || this.lastExecutedCmd || "",
         executions: this.executions,
       },
     });
-    const liveSession = activeSessions.get(this.sessionId);
+    const liveSession = WebSocketService.activeSessions.get(this.sessionId);
     if (liveSession) {
-      liveSession.workingon = workingOn || this.workingOn || "Working...";
+      liveSession.workingon = status;
       liveSession.executions = this.executions;
     }
   }
@@ -326,6 +328,7 @@ export class AskAI {
       this.userId,
       command,
       ChatMsgs,
+      this.deviceId,
       this.sessionId,
     );
     const stepDuration = ((Date.now() - stepStartTime) / 1000).toFixed(1) + "s";

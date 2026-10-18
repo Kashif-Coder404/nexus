@@ -179,17 +179,14 @@ const DevicesRedesign = ({ device }: { device: Device }) => {
 
       const result = await res.json();
 
-      if (result.success) {
-        useDevices
-          .getState()
-          .setDevices(
-            useDevices.getState().devices.filter((d) => d.id !== device.id),
-          );
+      if (result.success || res.status === 404) {
+        useDevices.getState().removeDevice(device.id);
       } else {
         console.error("[REVOKE DEVICE FAILED]:", result.message);
       }
     } catch (err: any) {
       console.error("[REVOKE DEVICE ERROR]:", err.message);
+      useDevices.getState().removeDevice(device.id);
     } finally {
       setIsRevoking(false);
     }

@@ -1,7 +1,6 @@
 import app from "./app.js";
 import dotenv from "dotenv";
 import http, { Server } from "http";
-import { initWebsocket } from "./services/websocket/websocket.service.js";
 import { initializeKeys } from "./EnvVariables.js";
 import { liveGeminiAICall } from "./AI/Providers/geminiAI.js";
 import { WebSocketService } from "./services/websocket/WS_OOP.js";
@@ -11,8 +10,8 @@ await initializeKeys();
 const PORT: number = Number(process.env.PORT) || 3100;
 
 const server: Server = http.createServer(app);
-// WebSocketService.init(server);
-initWebsocket(server);
+WebSocketService.init(server);
+// initWebsocket(server);
 
 server.listen(PORT, () => {
   console.log(`[SERVER] Running on http://localhost:${PORT}`);

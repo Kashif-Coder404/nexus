@@ -5,12 +5,7 @@ import {
   accessMemory,
   MemoryResponseType,
 } from "../services/memory.service.js";
-import {
-  activeSessions,
-  sendCmdRequest,
-  sendToUser,
-  waitForTaskCompletion,
-} from "../services/websocket/websocket.service.js";
+import { WebSocketService } from "../services/websocket/WS_OOP.js";
 import { summarizeBase64Image } from "./Helper/image.summarizer.js";
 import { getRealMessage } from "./Helper/middleMsg.generator.js";
 import { ChatMessageType } from "./Types.js";
@@ -199,6 +194,7 @@ export const commandParser = async (
   userId: string,
   cmd: CommandTypes,
   chatMessages: ChatMessageType[],
+  deviceId: string,
   sessionId?: string,
 ): Promise<CommandParserResponseType> => {
   let returningCmd: string = JSON.stringify(cmd);
@@ -221,7 +217,11 @@ export const commandParser = async (
         return;
       }
       try {
-        const searchResults = await sendCmdRequest(userId, returningCmd);
+        const searchResults: any = await WebSocketService.sendCmdRequest(
+          userId,
+          deviceId,
+          returningCmd,
+        );
         finalResponse.cmd = returningCmd;
         finalResponse.msg = searchResults?.msg || "";
         finalResponse.terminalOutput = searchResults?.terminalOutput || "";
@@ -237,7 +237,11 @@ export const commandParser = async (
     },
     search_app: async () => {
       try {
-        const results = await sendCmdRequest(userId, returningCmd);
+        const results = await WebSocketService.sendCmdRequest(
+          userId,
+          deviceId,
+          returningCmd,
+        );
         finalResponse.cmd = returningCmd;
         finalResponse.msg = results?.msg || "";
         finalResponse.terminalOutput = results?.terminalOutput || "";
@@ -253,7 +257,11 @@ export const commandParser = async (
     },
     launch_app: async () => {
       try {
-        const results = await sendCmdRequest(userId, returningCmd);
+        const results = await WebSocketService.sendCmdRequest(
+          userId,
+          deviceId,
+          returningCmd,
+        );
         finalResponse.cmd = returningCmd;
         finalResponse.msg = results?.msg || "";
         finalResponse.terminalOutput = results?.terminalOutput || "";
@@ -269,7 +277,11 @@ export const commandParser = async (
     },
     system_info: async () => {
       try {
-        const sysInfo = await sendCmdRequest(userId, returningCmd);
+        const sysInfo = await WebSocketService.sendCmdRequest(
+          userId,
+          deviceId,
+          returningCmd,
+        );
         finalResponse.cmd = returningCmd;
         finalResponse.msg = sysInfo?.msg || "";
         finalResponse.terminalOutput = sysInfo?.terminalOutput || "";
@@ -341,7 +353,11 @@ export const commandParser = async (
     capture_screen: async () => {
       try {
         const moreContext = (cmd.param as string) || "";
-        const localResponse = await sendCmdRequest(userId, returningCmd);
+        const localResponse = await WebSocketService.sendCmdRequest(
+          userId,
+          deviceId,
+          returningCmd,
+        );
         if (!localResponse?.isSuccess || !localResponse?.imageBase64) {
           finalResponse.cmd = returningCmd;
           finalResponse.msg = localResponse?.msg || "Image Not Captured";
@@ -418,8 +434,9 @@ export const commandParser = async (
       }
 
       try {
-        const executionResponse = await sendCmdRequest(
+        const executionResponse: any = await WebSocketService.sendCmdRequest(
           userId,
+          deviceId,
           commandPayload,
           timeoutMs,
         );
@@ -455,7 +472,7 @@ export const commandParser = async (
               chatMessages[chatMessages.length - 1]?.content ||
               "user goal not defined!";
             const aiworkingon =
-              (sessionId ? activeSessions.get(sessionId)?.workingon : "") ||
+              (sessionId ? WebSocketService.activeSessions.get(sessionId)?.workingon : "") ||
               "Executing task in background...";
             const midProcessMsg = await getRealMessage(
               userGoalMessage,
@@ -463,22 +480,22 @@ export const commandParser = async (
               commandPayload.Command,
             );
             if (sessionId) {
-              const live = activeSessions.get(sessionId);
+              const live = WebSocketService.activeSessions.get(sessionId);
               if (live) live.middleMsg = midProcessMsg;
             }
             // 1. Tell the user right now via WebSocket (middle message + unlock UI)
-            sendToUser(userId, {
+            WebSocketService.sendToClient(userId, {
               type: "background_running",
               taskId: executionResponse.taskId,
               msg: midProcessMsg,
               sessionId,
             });
             // 2. Hold the line! (Waits until websocket.service.ts wakes it up)
-            const completed: any = await waitForTaskCompletion(
+            const completed: any = await WebSocketService.waitForTaskCompletion(
               executionResponse.taskId,
             );
             if (sessionId) {
-              const live = activeSessions.get(sessionId);
+              const live = WebSocketService.activeSessions.get(sessionId);
               if (live) live.middleMsg = "";
             }
             finalResponse.terminalOutput = completed.terminalOutput;
@@ -497,6 +514,22 @@ export const commandParser = async (
     in_built: async () => {
       // Backward compatibility alias for terminal
       await (commandHandlerDict as any).terminal();
+    },
+    get_devices: async () => {
+      try {
+        const devices = await WebSocketService.GetDevices(userId);
+        finalResponse.cmd = returningCmd;
+        finalResponse.msg = `Retrieved ${devices.length} device(s)`;
+        finalResponse.terminalOutput = JSON.stringify(devices, null, 2);
+        finalResponse.terminalError = "";
+        finalResponse.isSuccess = true;
+      } catch (err: any) {
+        finalResponse.cmd = returningCmd;
+        finalResponse.msg = "Failed to fetch devices";
+        finalResponse.terminalOutput = "";
+        finalResponse.terminalError = `Error fetching devices: ${err.message}`;
+        finalResponse.isSuccess = false;
+      }
     },
   };
 

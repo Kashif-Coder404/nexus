@@ -5,6 +5,7 @@ import { systemInfoTool } from "./systemInfo.tools.js";
 import { captureScreenTool } from "./captureScreen.tools.js";
 import { powershellSkill } from "../skills/powershell.skills.js";
 import { miscSkill } from "../skills/misc.skills.js";
+import get_devices_tool from "./get_devices.tools.js";
 
 export const context_register: Record<string, string> = {
   terminal: terminalTool,
@@ -20,6 +21,8 @@ export const context_register: Record<string, string> = {
   // Skills
   powershell: powershellSkill,
   misc: miscSkill,
+  // Devices
+  get_devices: JSON.stringify(get_devices_tool),
 };
 
 export const get_context = (

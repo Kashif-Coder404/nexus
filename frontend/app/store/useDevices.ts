@@ -18,17 +18,43 @@ type DeviceStore = {
   removeDevice: (id: string) => void;
   openPairModal: () => void;
   closePairModal: () => void;
+  selectedDeviceId: string | null;
+  setSelectedDeviceId: (id: string | null) => void;
 };
 export const useDevices = create<DeviceStore>((set) => ({
   devices: [],
   isPairModalOpen: false,
-  setDevices: (devices: Device[]) => set({ devices }),
+  selectedDeviceId: null,
+  setSelectedDeviceId: (id: string | null) => set({ selectedDeviceId: id }),
+  setDevices: (devices: Device[]) =>
+    set((state) => {
+      const isCurrentOnline = devices.some(
+        (d) => d.id === state.selectedDeviceId && d.online,
+      );
+      const firstOnline = devices.find((d) => d.online)?.id || null;
+      return {
+        devices,
+        selectedDeviceId: isCurrentOnline ? state.selectedDeviceId : firstOnline,
+      };
+    }),
   setOnlineDevices: (id: string, online: boolean) =>
-    set((state) => ({
-      devices: state.devices.map((device) =>
+    set((state) => {
+      const updatedDevices = state.devices.map((device) =>
         device.id === id ? { ...device, online } : device,
-      ),
-    })),
+      );
+      let nextSelected = state.selectedDeviceId;
+      if (state.selectedDeviceId === id && !online) {
+        // If current device goes offline, pick another online one
+        nextSelected = updatedDevices.find((d) => d.online)?.id || null;
+      } else if (!state.selectedDeviceId && online) {
+        // If no device selected and one comes online, pick it
+        nextSelected = id;
+      }
+      return {
+        devices: updatedDevices,
+        selectedDeviceId: nextSelected,
+      };
+    }),
   setIpAddress: (id: string, ipAddress: string) =>
     set((state) => ({
       devices: state.devices.map((device) =>
@@ -42,9 +68,17 @@ export const useDevices = create<DeviceStore>((set) => ({
       ),
     })),
   removeDevice: (id: string) =>
-    set((state) => ({
-      devices: state.devices.filter((device) => device.id !== id),
-    })),
+    set((state) => {
+      const remaining = state.devices.filter((device) => device.id !== id);
+      const nextSelected =
+        state.selectedDeviceId === id
+          ? remaining.find((d) => d.online)?.id || null
+          : state.selectedDeviceId;
+      return {
+        devices: remaining,
+        selectedDeviceId: nextSelected,
+      };
+    }),
   openPairModal: () => set({ isPairModalOpen: true }),
   closePairModal: () => set({ isPairModalOpen: false }),
 }));

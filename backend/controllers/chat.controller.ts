@@ -1,4 +1,4 @@
-import { sendToUser } from "../services/websocket/websocket.service.js";
+import { WebSocketService } from "../services/websocket/WS_OOP.js";
 import { ChatMessageType } from "../AI/Types.js";
 import { summarize } from "../AI/Helper/para.summarizer.js";
 import { askAI } from "../AI/AskAI.js";
@@ -26,17 +26,26 @@ export const sendMessage = async (req: any, res: any) => {
     });
     return;
   }
-  sendToUser(userId, {
-    type: "acknowledged",
-    status: "received",
-    message: content,
+  WebSocketService.sendToClient(userId, {
+    type: "new_user_message",
+    sessionId: session,
+    message: {
+      role: "user",
+      content,
+      timestamp: new Date().toISOString(),
+    },
   });
 
   try {
-    sendToUser(userId, {
+    WebSocketService.sendToClient(userId, {
       type: "ai_data",
+      sessionId: session,
       data: {
         workingon: "Analyzing your request...",
+        workingOn: "Analyzing your request...",
+        msg: "",
+        cmd: "",
+        executions: [],
       },
     });
 
@@ -71,10 +80,26 @@ export const sendMessage = async (req: any, res: any) => {
       imageBase64,
       workedSeconds,
     } = await askAI(userId, session, content, behaviour, model);
-    sendToUser(userId, {
+    WebSocketService.sendToClient(userId, {
       type: "ai_done",
+      sessionId: session,
       data: {
         workingon: "",
+        message: {
+          role: "assistant",
+          content: {
+            lastAIMsg: msg || "No message from AI",
+            lastCMD: cmd || "",
+            terminal: terminalOutput || "",
+            terminalError: terminalError || "",
+            executions: executions || [],
+            imageBase64: imageBase64 || "",
+            workedSeconds: workedSeconds || 0,
+          },
+          executions: executions || [],
+          imageBase64: imageBase64 || "",
+          workedSeconds: workedSeconds || 0,
+        },
       },
     });
 
@@ -132,10 +157,25 @@ export const sendMessage = async (req: any, res: any) => {
       console.error("[BACKGROUND SUMMARY ERROR]: ", err),
     );
   } catch (error: any) {
-    sendToUser(userId, {
+    WebSocketService.sendToClient(userId, {
       type: "ai_done",
+      sessionId: session,
       data: {
         workingon: "",
+        message: {
+          role: "assistant",
+          content: {
+            lastAIMsg: error.message || "An error occurred",
+            lastCMD: "",
+            terminal: "",
+            terminalError: error.message || "",
+            executions: [],
+            imageBase64: "",
+            workedSeconds: 0,
+          },
+          executions: [],
+          workedSeconds: 0,
+        },
       },
     });
     console.error("[CHAT ERROR]:", error.message || error);

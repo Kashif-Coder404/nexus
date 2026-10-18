@@ -18,4 +18,5 @@ export const minimalToolsCatalog = `
 7. "get_context": { "name": "terminal" | "search_app" | "launch_app" | "search" | "system_info" | "capture_screen" | "powershell" | "misc" }
     * Purpose: Dynamically loads the complete operational manual, edge cases, and syntax rules for a tool or skill into your system prompt.
     * When to invoke: Call "get_context" ONLY if a previous tool call failed with a schema or execution error, OR when you need specialized operational heuristics before executing a complex action. Once loaded, the manual is permanently available for the remainder of the session.
+8. "get_devices": {}
 `;

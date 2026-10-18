@@ -7,10 +7,12 @@ import {
   CheckCircle2,
   StopCircle,
   SquareEqual,
+  Laptop,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useUserCredentials } from "../store/useUserCredentials";
 import useChat from "../store/useChat";
+import { useDevices } from "../store/useDevices";
 import { useRouter } from "next/navigation";
 import { sendWsJson } from "@/services/ws.service";
 import { IconStopwatch } from "@tabler/icons-react";
@@ -65,6 +67,12 @@ const SendMsg = ({ sendingUrl }: { sendingUrl?: string }) => {
   const [msg, setMsg] = useState<string>("");
   const [isSending, setIsSending] = useState<boolean>(false);
   const [model, setModel] = useState<ModelType>(Models[0]);
+  const [isDeviceSelectOpen, setIsDeviceSelectOpen] = useState<boolean>(false);
+
+  const devices = useDevices((state) => state.devices);
+  const selectedDeviceId = useDevices((state) => state.selectedDeviceId);
+  const setSelectedDeviceId = useDevices((state) => state.setSelectedDeviceId);
+  const selectedDevice = devices.find((d) => d.id === selectedDeviceId);
 
   const sessionId = useChat((state) => state.session);
   const addChat = useChat((state) => state.addChat);
@@ -121,6 +129,7 @@ const SendMsg = ({ sendingUrl }: { sendingUrl?: string }) => {
         type: "chat_send",
         sessionId,
         content: actualMessage,
+        deviceId: selectedDeviceId,
         model: {
           provider: model.provider,
           name: model.name,
@@ -136,43 +145,154 @@ const SendMsg = ({ sendingUrl }: { sendingUrl?: string }) => {
   return (
     <>
       <div className="relative w-full max-w-4xl mx-auto px-4 py-3">
-        <div className="relative w-fit ml-2 mb-1.5 group">
-          <button
-            onClick={() => setIsModelSelectOpen(!isModelSelectOpen)}
-            className="flex items-center gap-2 text-brand-glow hover:text-brand-hover transition"
-          >
-            <span className="font-mono">{model.displayName || model.name}</span>
-            <ChevronDown className="h-3 w-3 transition-transform group-hover:rotate-180" />
-          </button>
+        {/* Top Control Bar: Model Selector + Target Device Selector */}
+        <div className="flex items-center gap-3 ml-2 mb-2">
+          {/* 1. Model Selector */}
+          <div className="relative w-fit group">
+            <button
+              type="button"
+              onClick={() => {
+                setIsModelSelectOpen(!isModelSelectOpen);
+                setIsDeviceSelectOpen(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-surface/70 border border-brand-border/40 text-brand-glow hover:text-white hover:border-brand-hover/60 transition text-xs font-mono backdrop-blur-md"
+            >
+              <span>{model.displayName || model.name}</span>
+              <ChevronDown className="h-3 w-3 text-brand-glow/70 transition-transform group-hover:rotate-180" />
+            </button>
 
-          {/* Dropdown Menu */}
-          <div
-            className={`absolute z-[999] bottom-full left-0 mb-2 w-64 bg-brand-surface/95 border border-brand-border/60 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl ${isModelSelectOpen ? "opacity-100 visible" : "opacity-0 invisible transition-all duration-200"}`}
-          >
-            <div className="p-1">
-              {Models.map((m) => {
-                const isSelected =
-                  model.name === m.name && model.provider === m.provider;
-                return (
-                  <button
-                    key={`${m.provider}-${m.name}`}
-                    onClick={() => {
-                      setModel(m);
-                      setIsModelSelectOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-mono text-left transition-all ${
-                      isSelected
-                        ? "bg-brand/20 text-brand-glow"
-                        : "text-zinc-300 hover:bg-brand/10 hover:text-white"
+            {/* Model Dropdown Menu */}
+            <div
+              className={`absolute z-[999] bottom-full left-0 mb-2 w-60 bg-brand-surface/95 border border-brand-border/60 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl ${
+                isModelSelectOpen
+                  ? "opacity-100 visible"
+                  : "opacity-0 invisible transition-all duration-200"
+              }`}
+            >
+              <div className="p-1">
+                {Models.map((m) => {
+                  const isSelected =
+                    model.name === m.name && model.provider === m.provider;
+                  return (
+                    <button
+                      key={`${m.provider}-${m.name}`}
+                      onClick={() => {
+                        setModel(m);
+                        setIsModelSelectOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-mono text-left transition-all ${
+                        isSelected
+                          ? "bg-brand/20 text-brand-glow"
+                          : "text-zinc-300 hover:bg-brand/10 hover:text-white"
+                      }`}
+                    >
+                      <span>{m.displayName || m.name}</span>
+                      {isSelected && (
+                        <CheckCircle2 className="h-3.5 w-3.5 ml-auto text-brand-hover" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Target Device Selector */}
+          <div className="relative w-fit group">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDeviceSelectOpen(!isDeviceSelectOpen);
+                setIsModelSelectOpen(false);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono transition backdrop-blur-md ${
+                selectedDevice && selectedDevice.online
+                  ? "bg-brand-surface/70 border-emerald-500/40 text-zinc-200 hover:border-emerald-500/70"
+                  : "bg-brand-surface/70 border-amber-500/40 text-amber-300/80 hover:border-amber-500/70"
+              }`}
+            >
+              <Laptop className="h-3 w-3 text-zinc-400" />
+              {selectedDevice ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate max-w-[130px]">
+                    {selectedDevice.deviceName}
+                  </span>
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      selectedDevice.online
+                        ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+                        : "bg-red-500"
                     }`}
-                  >
-                    <span>{m.displayName || m.name}</span>
-                    {isSelected && (
-                      <CheckCircle2 className="h-4 w-4 ml-auto text-brand-hover" />
-                    )}
-                  </button>
-                );
-              })}
+                  />
+                </span>
+              ) : (
+                <span className="text-amber-400 text-[11px]">
+                  Select Target Device
+                </span>
+              )}
+              <ChevronDown className="h-3 w-3 text-zinc-500 transition-transform group-hover:rotate-180" />
+            </button>
+
+            {/* Device Dropdown Menu */}
+            <div
+              className={`absolute z-[999] bottom-full left-0 mb-2 w-64 bg-brand-surface/95 border border-brand-border/60 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl ${
+                isDeviceSelectOpen
+                  ? "opacity-100 visible"
+                  : "opacity-0 invisible transition-all duration-200"
+              }`}
+            >
+              <div className="p-1">
+                <div className="px-3 py-1.5 text-[10px] font-mono text-zinc-400 uppercase tracking-wider border-b border-white/5 flex items-center justify-between">
+                  <span>Target Companion</span>
+                  <span className="text-[9px] text-zinc-500">
+                    {devices.filter((d) => d.online).length} online
+                  </span>
+                </div>
+                {devices.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-zinc-500 text-center">
+                    No devices paired yet.
+                  </div>
+                ) : (
+                  devices.map((d) => {
+                    const isSel = selectedDeviceId === d.id;
+                    return (
+                      <button
+                        key={d.id}
+                        disabled={!d.online}
+                        type="button"
+                        onClick={() => {
+                          if (d.online) {
+                            setSelectedDeviceId(d.id);
+                            setIsDeviceSelectOpen(false);
+                          }
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-mono text-left transition-all ${
+                          isSel
+                            ? "bg-brand/20 text-brand-glow font-medium"
+                            : d.online
+                              ? "text-zinc-300 hover:bg-brand/10 hover:text-white"
+                              : "text-zinc-600 opacity-40 cursor-not-allowed"
+                        }`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            d.online ? "bg-emerald-400" : "bg-red-500"
+                          }`}
+                        />
+                        <span className="truncate flex-1">{d.deviceName}</span>
+                        {isSel && (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-brand-hover shrink-0" />
+                        )}
+                        {!d.online && (
+                          <span className="text-[10px] text-zinc-600 shrink-0">
+                            Offline
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         </div>

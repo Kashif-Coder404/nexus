@@ -46,6 +46,7 @@ export interface ActionTypes {
     application: string;
   };
   system_info?: Record<string, any> | string;
+  get_devices?: Record<string, any> | {};
 }
 
 export type ParametersType<p extends keyof ActionTypes> = ActionTypes[p];
