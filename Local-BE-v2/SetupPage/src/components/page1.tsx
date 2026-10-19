@@ -223,7 +223,7 @@ export default function PairingPage() {
   const userDisplay = useMemo(() => {
     if (decodedJwt?.email) return decodedJwt.email;
     const uid = decodedJwt?.userId || decodedJwt?.user_id || decodedJwt?.sub;
-    if (uid) return `UID-${uid.slice(0, 10)}`;
+    if (uid) return `UID-${uid.slice(-10)}`;
     return status?.isPaired || activeToken ? "Paired Account" : "Unassigned";
   }, [decodedJwt, status?.isPaired, activeToken]);
 

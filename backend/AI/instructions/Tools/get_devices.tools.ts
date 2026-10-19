@@ -1,4 +1,4 @@
-import { WebSocketService } from "../../../services/websocket/WS_OOP.js";
+import { WebSocketService } from "../../../services/websocket/websocket.main.service.js";
 
 export const get_devices_tool = {
   name: "get_devices",

@@ -6,13 +6,18 @@ export interface Device {
   online: boolean;
   service?: boolean;
   ipAddress?: string;
+  status?: "online" | "offline" | "reconnecting";
 }
 
 type DeviceStore = {
   devices: Device[];
   isPairModalOpen: boolean;
   setDevices: (devices: Device[]) => void;
-  setOnlineDevices: (id: string, online: boolean) => void;
+  setOnlineDevices: (
+    id: string,
+    online: boolean,
+    status?: "online" | "offline" | "reconnecting",
+  ) => void;
   setIpAddress: (id: string, ipAddress: string) => void;
   setService: (id: string, service: boolean) => void;
   removeDevice: (id: string) => void;
@@ -34,20 +39,35 @@ export const useDevices = create<DeviceStore>((set) => ({
       const firstOnline = devices.find((d) => d.online)?.id || null;
       return {
         devices,
-        selectedDeviceId: isCurrentOnline ? state.selectedDeviceId : firstOnline,
+        selectedDeviceId: isCurrentOnline
+          ? state.selectedDeviceId
+          : firstOnline,
       };
     }),
-  setOnlineDevices: (id: string, online: boolean) =>
+  setOnlineDevices: (
+    id: string,
+    online: boolean,
+    status?: "online" | "offline" | "reconnecting",
+  ) =>
     set((state) => {
       const updatedDevices = state.devices.map((device) =>
-        device.id === id ? { ...device, online } : device,
+        device.id === id
+          ? {
+              ...device,
+              online,
+              status: status || (online ? "online" : "offline"),
+            }
+          : device,
       );
       let nextSelected = state.selectedDeviceId;
-      if (state.selectedDeviceId === id && !online) {
-        // If current device goes offline, pick another online one
+      // Do NOT deselect if reconnecting!
+      if (
+        state.selectedDeviceId === id &&
+        !online &&
+        status !== "reconnecting"
+      ) {
         nextSelected = updatedDevices.find((d) => d.online)?.id || null;
       } else if (!state.selectedDeviceId && online) {
-        // If no device selected and one comes online, pick it
         nextSelected = id;
       }
       return {

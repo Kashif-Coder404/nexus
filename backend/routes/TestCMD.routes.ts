@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { WebSocketService } from "../services/websocket/WS_OOP.js";
+import { WebSocketService } from "../services/websocket/websocket.main.service.js";
 
 const router = Router();
 

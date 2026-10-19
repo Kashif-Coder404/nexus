@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import http, { Server } from "http";
 import { initializeKeys } from "./EnvVariables.js";
 import { liveGeminiAICall } from "./AI/Providers/geminiAI.js";
-import { WebSocketService } from "./services/websocket/WS_OOP.js";
+import { WebSocketService } from "./services/websocket/websocket.main.service.js";
 dotenv.config();
 
 await initializeKeys();

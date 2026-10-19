@@ -1,6 +1,6 @@
 import { WebSocket } from "ws";
 import { CommandExecutionType } from "../../AI/Types/AIResponseTypes.js";
-import { ClientSession } from "./WS_OOP.js";
+import { ClientSession } from "./Frontend.js";
 
 export type ClientTabs = Set<ClientSession>;
 
@@ -39,9 +39,12 @@ export interface PendingTask {
 }
 
 export interface PendingRequest {
+  requestId: string;
   resolve: (value: any) => void;
   reject: (reason?: any) => void;
   timer: NodeJS.Timeout;
+  deviceId?: string; // <-- ADD THIS
+  deviceName?: string;
 }
 
 // 1. Device Status Update (Frontend ke liye)
@@ -56,6 +59,7 @@ export interface WSDeviceStatusMsg {
   };
   online: boolean;
   service?: boolean;
+  status?: "online" | "offline" | "reconnecting";
 }
 
 // 2. Full Device List (Jab frontend get_devices maange)

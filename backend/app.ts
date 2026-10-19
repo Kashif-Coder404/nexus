@@ -11,7 +11,7 @@ import {
   startParingHandler,
   revokeDeviceHandler,
   revokeSelfHandler,
-} from "./services/websocket/WS_OOP.js";
+} from "./services/websocket/websocket.main.service.js";
 import { UserModel } from "./db/schema/user-schema.js";
 
 connectDB();

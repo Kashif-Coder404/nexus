@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.VisualBasic;
 using Nexus.Agent.Models;
 using Porta.Pty;
 
@@ -378,6 +379,7 @@ function Read-Host {{ param([Parameter(Position=0)][string]$Prompt) if ($Prompt)
 
         return false;
     }
+
     public static async Task<CommandResponse> StartApplication(StartAppDto body)
     {
         string target = body.Application?.Trim() ?? "";
@@ -391,7 +393,10 @@ function Read-Host {{ param([Parameter(Position=0)][string]$Prompt) if ($Prompt)
                 ExitCode = 1
             };
         }
-
+        var ignoredWrappers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "conhost", "cmd", "powershell", "pwsh", "openconsole", "werfault"
+            };
         try
         {
             var beforePids = Process.GetProcesses().Select(p => p.Id).ToHashSet();
@@ -399,6 +404,7 @@ function Read-Host {{ param([Parameter(Position=0)][string]$Prompt) if ($Prompt)
             var psi = new ProcessStartInfo
             {
                 FileName = target,
+                Arguments = body.Arguments,
                 WorkingDirectory = Directory.Exists(target) ? target : (File.Exists(target) ? Path.GetDirectoryName(target) : ""),
                 UseShellExecute = true,
             };
@@ -480,15 +486,29 @@ function Read-Host {{ param([Parameter(Position=0)][string]$Prompt) if ($Prompt)
         }
         catch (Exception ex)
         {
+            var apps = await SearchServices.SearchApp(target, 10);
+
+            var distinctApps = apps
+                .DistinctBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+
+            var formattedList = distinctApps.Count > 0
+                ? string.Join("\n", distinctApps.Select(a => $"- {a.Name} => {a.Path}"))
+                : "No matching applications found on system.";
+
             return new CommandResponse
             {
                 Cmd = body.Application ?? "",
-                Msg = $"Failed to start application: {ex.Message}",
-                TerminalError = ex.Message,
+                Msg = $"Application '{target}' not found directly. Found {distinctApps.Count} candidates.",
+                TerminalOutput = $"[MATCHING APPLICATIONS FOUND]:\n{formattedList}\n\nPlease call launch_app with the exact path from above.",
+                TerminalError = $"Failed to start application '{target}': {ex.Message}",
                 IsSuccess = false,
                 ExitCode = 1,
                 Pid = ""
             };
         }
+
+
     }
 }

@@ -87,8 +87,11 @@ All operational decisions must follow the general pattern:
   * **Do**: Navigate, open, or inspect the path directly without searching (e.g. \`explorer '<Path>'\`).
   * **Instead of**: Do NOT search for paths that are already known and provided by the user.
 - **Whenever locating unknown files, folders, or workspaces across the system**:
-  * **Do**: Use the structured \`search\` tool (\`expected_name\`, \`path\`, \`type\`: \`"file"\` | \`"folder"\` | \`"all"\`, \`extension\`, \`isDeepSearch\`). Whenever the requested item is known or implied to be a specific document, media, archive, or code file, ALWAYS supply the target file format via \`extension\` (e.g. \`".pdf"\`, \`".docx"\`, \`".xlsx"\`, \`".zip"\`, \`".png"\`, \`".py"\`). This enables the companion agent to filter out unrelated disk clutter instantly at the directory traversal layer.
-  * **Instead of**: Do NOT omit the extension when the user's intent implies a specific file format, and do NOT run slow, unindexed shell directory traversals across large disks.
+  * **Do**: Use the structured \`search\` tool exclusively (\`expected_name\`, \`path\`, \`type\`: \`"file"\` | \`"folder"\` | \`"all"\`, \`extension\`, \`isDeepSearch\`). Whenever the requested item is known or implied to be a specific document, media, archive, or code file, ALWAYS supply the target file format via \`extension\` (e.g. \`".pdf"\`, \`".docx"\`, \`".xlsx"\`, \`".zip"\`, \`".png"\`, \`".py"\`). This enables the companion agent to filter out unrelated disk clutter instantly at the directory traversal layer.
+  * **Instead of**: NEVER use \`terminal\` (\`Get-ChildItem\`, \`dir /s\`, \`findstr\`) to search for files, documents, or directories. Do NOT run unindexed shell traversals across disks.
+- **Whenever the \`search\` tool returns 0 results or fails to locate a file/folder**:
+  * **Do**: STOP immediately. State clearly and politely to the user that the item could not be found on their system.
+  * **Instead of**: Do NOT fall back to native terminal commands (like \`Get-ChildItem\`) to manually search disk drives. If the dedicated tool can't find it, inform the user directly.
 - **Whenever a newly searched path or resource is successfully located**:
   * **Do**: Cache it immediately via \`memory_write\` (\`alias\`, \`value\`, \`category\`).
   * **Instead of**: Do NOT leave discovered paths uncached, forcing repetitive searches in future turns.

@@ -44,6 +44,7 @@ export interface ActionTypes {
   unmute: { level?: number; times?: number };
   launch_app: {
     application: string;
+    arguments?: string;
   };
   system_info?: Record<string, any> | string;
   get_devices?: Record<string, any> | {};

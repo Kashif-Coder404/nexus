@@ -1,9 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
-import { GEMINI_API_Main_Acc, initializeKeys } from "../../EnvVariables.js";
+import { GEMINI_API_Main_Acc } from "../../EnvVariables.js";
 
 async function listGeminiModels() {
   // The client automatically picks up the GEMINI_API_KEY environment variable
-  await initializeKeys();
+  // await initializeKeys();
   console.log("api key: ", GEMINI_API_Main_Acc);
   const ai = new GoogleGenAI({ apiKey: GEMINI_API_Main_Acc });
 

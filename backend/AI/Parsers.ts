@@ -5,7 +5,7 @@ import {
   accessMemory,
   MemoryResponseType,
 } from "../services/memory.service.js";
-import { WebSocketService } from "../services/websocket/WS_OOP.js";
+import { WebSocketService } from "../services/websocket/websocket.main.service.js";
 import { summarizeBase64Image } from "./Helper/image.summarizer.js";
 import { getRealMessage } from "./Helper/middleMsg.generator.js";
 import { ChatMessageType } from "./Types.js";
@@ -472,8 +472,9 @@ export const commandParser = async (
               chatMessages[chatMessages.length - 1]?.content ||
               "user goal not defined!";
             const aiworkingon =
-              (sessionId ? WebSocketService.activeSessions.get(sessionId)?.workingon : "") ||
-              "Executing task in background...";
+              (sessionId
+                ? WebSocketService.activeSessions.get(sessionId)?.workingon
+                : "") || "Executing task in background...";
             const midProcessMsg = await getRealMessage(
               userGoalMessage,
               aiworkingon,

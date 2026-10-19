@@ -35,7 +35,7 @@ public class WebSocketClientService : BackgroundService
                     {
                         try
                         {
-                            await Task.Delay(25000, stoppingToken);
+                            await Task.Delay(10000, stoppingToken);
                             if (ws.State == WebSocketState.Open)
                             {
                                 await SendJsonAsync(ws, new { type = "ping", service = DeviceStateManager.IsServiceEnabled }, stoppingToken);
@@ -336,13 +336,14 @@ public class WebSocketClientService : BackgroundService
                         case "launch_app":
                         case "start_app":
                             var targetApp = cmdNode?["param"]?["application"] ?? cmdNode?["param"]?["path"] ?? cmdNode?["application"] ?? cmdNode?["param"];
+                            var targetArgs = cmdNode?["param"]?["arguments"]?.ToString() ?? cmdNode?["param"]?["args"]?.ToString() ?? cmdNode?["arguments"]?.ToString() ?? cmdNode?["args"]?.ToString();
                             if (string.IsNullOrWhiteSpace(targetApp?.ToString()))
                             {
                                 response = new CommandResponse { Cmd = rawCmd, Msg = "Application name is required", TerminalOutput = "Application name is required", IsSuccess = false, ExitCode = 1 };
                                 break;
                             }
                             var app = targetApp.ToString().Trim();
-                            response = await ExecuteServices.StartApplication(new StartAppDto { Application = app });
+                            response = await ExecuteServices.StartApplication(new StartAppDto { Application = app, Arguments = targetArgs });
                             break;
                         case "peek_task":
                         case "task_logs":

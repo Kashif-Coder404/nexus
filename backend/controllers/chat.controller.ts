@@ -1,4 +1,4 @@
-import { WebSocketService } from "../services/websocket/WS_OOP.js";
+import { WebSocketService } from "../services/websocket/websocket.main.service.js";
 import { ChatMessageType } from "../AI/Types.js";
 import { summarize } from "../AI/Helper/para.summarizer.js";
 import { askAI } from "../AI/AskAI.js";

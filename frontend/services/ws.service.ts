@@ -37,6 +37,12 @@ const WebSocketInit = async (): Promise<WebSocket | undefined> => {
     activeSocket = ws;
     ws.send(JSON.stringify({ type: "auth", token }));
     ws.send(JSON.stringify({ type: "get_devices" }));
+    const currentSesssion = useChat.getState().session;
+    if (currentSesssion) {
+      ws.send(
+        JSON.stringify({ type: "sync_session", sessionId: currentSesssion }),
+      );
+    }
   };
   ws.onmessage = (event) => {
     try {
@@ -63,7 +69,9 @@ const WebSocketInit = async (): Promise<WebSocket | undefined> => {
         const deviceId = payload.device?.id || payload.deviceId;
         if (deviceId) {
           if (payload.online !== undefined) {
-            useDevices.getState().setOnlineDevices(deviceId, payload.online);
+            useDevices
+              .getState()
+              .setOnlineDevices(deviceId, payload.online, payload.status);
           }
           // Save the ipAddress sent by Local-BE on first connect (note: backend uses lowercase 'ipaddress')
           const ip =

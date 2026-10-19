@@ -221,7 +221,9 @@ const SendMsg = ({ sendingUrl }: { sendingUrl?: string }) => {
                     className={`w-1.5 h-1.5 rounded-full ${
                       selectedDevice.online
                         ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
-                        : "bg-red-500"
+                        : selectedDevice.status === "reconnecting"
+                          ? "bg-amber-400 animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.8)]"
+                          : "bg-red-500"
                     }`}
                   />
                 </span>

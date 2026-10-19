@@ -12,9 +12,8 @@ import {
   GEMINI_API_K69,
   GEMINI_API_COLLGEWISE,
   GEMINI_API_DIALYUI,
-  initializeKeys,
 } from "../../EnvVariables.js";
-await initializeKeys();
+// await initializeKeys();
 export const GEMINI_API_KEYS = [
   GEMINI_API_Main_Acc,
   GEMINI_API_Don_Acc,

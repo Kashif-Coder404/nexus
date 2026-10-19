@@ -1,7 +1,7 @@
 import { SessionModel } from "../db/schema/session-schema.js";
 import { getChat, setChat } from "../services/chat.history.service.js";
 import { uploadScreenshotToCloudinary } from "../services/claudinary.service.js";
-import { WebSocketService } from "../services/websocket/WS_OOP.js";
+import { WebSocketService } from "../services/websocket/websocket.main.service.js";
 import { callAI, ModelType } from "./CallAI.js";
 import { testingInstructions } from "./instructions/main.instrcutions.testing.js";
 

@@ -9,9 +9,11 @@ import get_devices_tool from "./get_devices.tools.js";
 
 export const context_register: Record<string, string> = {
   terminal: terminalTool,
+  in_built: terminalTool,
   // Applications (both search and launch)
   search_app: searchAppTool,
   launch_app: searchAppTool,
+  start_app: searchAppTool,
   // Filesystem Search
   search: searchTool,
   // Hardware Telemetry
@@ -22,7 +24,10 @@ export const context_register: Record<string, string> = {
   powershell: powershellSkill,
   misc: miscSkill,
   // Devices
-  get_devices: JSON.stringify(get_devices_tool),
+  get_devices:
+    typeof get_devices_tool === "string"
+      ? get_devices_tool
+      : JSON.stringify(get_devices_tool),
 };
 
 export const get_context = (

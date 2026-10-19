@@ -9,9 +9,12 @@ Application discovery and verified GUI launching detached from terminal job obje
 
 - **Action Name**: \`"launch_app"\`
   * \`application\` (string, required): Full verified path to executable or \`.lnk\` shortcut, or standard built-in Windows PATH utility name (e.g. \`"notepad"\`, \`"calc"\`, \`"code"\`).
+  * \`arguments\` (string, optional): Folder path, file path, URL, or command-line flags to pass to the launched application (e.g. \`"D:\\\\Coding\\\\Project"\`, \`"https://github.com"\`, \`"--new-window"\`).
 
 - **Core Heuristics**:
   * **Two-Stage Launch Pattern**: First query \`search_app\` to discover the application. When verified, pass the top result (\`results[0]\`) to \`launch_app\`.
+  * **Candidate List Recovery (Self-Healing)**: If \`launch_app\` returns \`[MATCHING APPLICATIONS FOUND]\`, inspect the candidate paths. Use semantic intent from the user's prompt to select the correct target (e.g. choosing a Game Player client vs. a Studio/SDK) and immediately re-call \`launch_app\` with the verified path.
+  * **Passing Arguments**: Use \`arguments\` whenever opening a specific project/folder in an editor (e.g. \`application: "code", arguments: "D:\\\\path"\`), opening a URL in a browser, or passing startup flags.
   * **Why launch_app**: \`launch_app\` delegates execution directly to the Windows Shell (\`explorer.exe\`), completely detaching the application from terminal job objects, preventing ConPTY from forcefully killing child processes upon command completion.
   * **NEVER launch GUI apps via terminal**: Do NOT run \`Start-Process\`, \`Invoke-Item\`, or raw executable names inside \`terminal\`.
   * **Query Normalization**: Extract the clean root brand name without conversational filler (e.g. "please open brave browser for me" -> \`name: "brave"\`).
@@ -64,6 +67,17 @@ Application discovery and verified GUI launching detached from terminal job obje
   },
   "msg": "Opening Notepad...",
   "workingon": "opening Notepad"
+}
+\`\`\`
+
+\`\`\`json
+{
+  "cmd": {
+    "action": "launch_app",
+    "param": { "application": "code", "arguments": "D:\\\\Coding\\\\PROJECTS\\\\Next\\\\Nexus_v2" }
+  },
+  "msg": "Opening project in VS Code...",
+  "workingon": "opening project in VS Code"
 }
 \`\`\`
 `;

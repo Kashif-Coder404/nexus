@@ -10,6 +10,7 @@ public class RunCommandDto
 public class StartAppDto
 {
     public string Application { get; set; } = "";
+    public string? Arguments { get; set; } = "";
 }
 public class CommandResponse
 {
