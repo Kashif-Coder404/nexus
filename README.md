@@ -39,13 +39,13 @@ graph TD
     end
 
     %% Network & WebSocket Communication
-    Web <-->|WebSocket: State Sync & Terminal Streams| WSServer
-    CompanionService <-->|Persistent WebSocket Tunnel: RunCMD / Responses| WSServer
+    Web <-->|"WebSocket: State Sync & Terminal Streams"| WSServer
+    CompanionService <-->|"Persistent WebSocket Tunnel: RunCMD / Responses"| WSServer
     
     WSServer <--> DB
     WSServer <--> AskAI
     AskAI <--> AIProviders
-    AskAI <-->|Task Dispatch ($O(1) Mutex)| CompanionService
+    AskAI <-->|"Task Dispatch: O(1) Mutex"| CompanionService
 
     CompanionService --> ConPTY
     CompanionService --> AppLauncher
