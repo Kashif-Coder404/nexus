@@ -1,150 +1,170 @@
-# 🌌 Nexus v2 — Autonomous Local & Cloud AI Operating System
+# 🌌 Nexus v2 — Distributed AI Operating System & Host Companion
 
-[![Nexus Ecosystem](https://img.shields.io/badge/Nexus-v2.0-7357E2?style=for-the-badge&logo=electron&logoColor=white)](https://github.com/Kashif-Coder404/nexus-v2)
+[![Nexus Ecosystem](https://img.shields.io/badge/Nexus-v2.6-7357E2?style=for-the-badge&logo=electron&logoColor=white)](https://github.com/Kashif-Coder404/nexus-v2)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://microsoft.com/windows)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-> **In One Simple Line:** Nexus is a self-healing, multi-agent desktop assistant and companion operating system that bridges cloud LLMs with host-level Windows capabilities (native PowerShell, ConPTY pseudoterminals, screen inspection, file indexing, and telemetry) through real-time WebSockets.
+> Nexus is an open-source, distributed desktop assistant and host companion operating system. It bridges cloud-based Large Language Models directly with native operating system capabilities—including raw Windows PowerShell, ConPTY pseudoterminals, low-latency screen inspection, file indexing, and real-time hardware telemetry—over a resilient, object-oriented WebSocket fabric.
 
 ---
 
 ## 🏗️ System Architecture
 
+Nexus is organized into three decoupled layers: the **Client Control Plane**, the **Cloud Gateway & AI Engine**, and the **Native Host Companion**.
+
 ```mermaid
 graph TD
-    subgraph Clients ["Client Control Interfaces"]
-        Web["🖥️ Web Dashboard (Next.js 16 / React 19) [:3000]"]
-        Mobile["📱 Mobile Console (React Native / Expo)"]
+    subgraph ClientPlane ["Client Control Plane"]
+        Web["🖥️ Web Dashboard (Next.js 16 / React 19 / Tailwind v4)<br/>Multi-Device Target Selector & Live Streaming HUD"]
     end
 
-    subgraph CloudGateway ["Cloud Backend (:3100)"]
-        Server["🔌 Express.js / TypeScript REST API"]
-        WSHub["📡 Central WebSocket Router"]
+    subgraph CloudGateway ["Cloud Gateway & Orchestrator (Node.js / TypeScript)"]
+        WSServer["📡 OOP WebSocket Hub (BaseSession / FrontendSession / DeviceSession)"]
+        AskAI["🧠 ReAct Orchestration Engine (AskAI_OOP.ts)"]
+        DeviceRegistry["🔑 Multi-Device Pairing & Token Verification"]
         DB[(🗄️ MongoDB Cloud / Atlas)]
-        Orchestrator["🧠 AI ReAct Loop (askAI.ts)"]
-        Memory["🧠 Per-User Memory Service"]
     end
 
-    subgraph HostAgent ["Host PC Agent: Local-BE-v2 (:4100)"]
-        Agent["⚡ C# .NET 8 Background Service (nexus.exe)"]
+    subgraph HostAgent ["Host Companion: Local-BE-v2 (.NET 8 / C#)"]
+        CompanionService["⚡ Background Host Service (nexus.exe)"]
         ConPTY["🐚 Windows ConPTY Terminal Engine (Porta.Pty)"]
-        Search["🔍 Voidtools Everything File Indexer"]
-        Vision["📸 GDI+ High-Speed Screen Capture"]
-        Telemetry["📊 LibreHardwareMonitor Engine"]
-        LocalUI["🌐 Embedded Setup & Pairing Page"]
+        AppLauncher["🚀 Shell App Discovery & Window Handle Verifier"]
+        SearchEngine["🔍 Everything SDK / MFT File Indexer"]
+        VisionEngine["📸 GDI+ High-Speed Screen Capture"]
+        Sensors["📊 LibreHardwareMonitor Sensor Telemetry"]
     end
 
-    subgraph ModelBridge ["AI Inference Providers"]
-        GoogleAPI["☁️ Google Gemini Direct (API Keys)"]
-        LocalNIM["🐧 NVIDIA NIM / Local Models"]
+    subgraph AIProviders ["Inference Layer"]
+        Gemini["☁️ Google Gemini Direct (Live & Chat Models)"]
     end
 
-    %% Networking Links
-    Web <-->|HTTP / WS Live Logs| CloudGateway
-    Mobile <-->|HTTP / WS Live Logs| CloudGateway
-    HostAgent <-->|WebSocket Persistent Tunnel| WSHub
+    %% Network & WebSocket Communication
+    Web <-->|WebSocket: State Sync & Terminal Streams| WSServer
+    CompanionService <-->|Persistent WebSocket Tunnel: RunCMD / Responses| WSServer
     
-    CloudGateway <--> DB
-    CloudGateway <--> Orchestrator
-    Orchestrator <--> ModelBridge
-    Orchestrator <--> HostAgent
-    
-    HostAgent --> ConPTY
-    HostAgent --> Search
-    HostAgent --> Vision
-    HostAgent --> Telemetry
+    WSServer <--> DB
+    WSServer <--> AskAI
+    AskAI <--> AIProviders
+    AskAI <-->|Task Dispatch ($O(1) Mutex)| CompanionService
+
+    CompanionService --> ConPTY
+    CompanionService --> AppLauncher
+    CompanionService --> SearchEngine
+    CompanionService --> VisionEngine
+    CompanionService --> Sensors
 ```
 
 ---
 
-## 🧩 Component Directory & Ports
+## ⚡ Core Architectural Capabilities
 
-| Component | Tech Stack | Port | Primary Responsibility |
+### 1. Object-Oriented WebSocket Engine (`backend/services/websocket`)
+- **Modular Session Hierarchy**: WebSocket connections are partitioned into typed OOP sessions (`BaseWSSession`, `ClientSession`, `ClientDeviceSession`), cleanly separating browser UI clients from host machine daemons.
+- **$O(1)$ Device Command Mutex**: Rather than scanning unbounded global request tables, each connected device session maintains a single active in-flight request pointer (`pendingRequest`), enforcing sequential execution safety on the host machine with constant-time resolution.
+- **Graceful Disconnect Window**: If a host machine experiences a transient network drop during an in-flight operation, the gateway enters a 15-second grace buffer (`status: "reconnecting"`), preserving session continuity and allowing the host companion to reconnect and deliver results without aborting.
+
+### 2. Multi-Device Management & Pairing Gateway
+- **Zero-Trust Device Linking**: Headless companion instances generate a cryptographically random, short-lived 6-character pairing code (`NX-XXXXXX`). Linking pairs the host securely to the user's account and persists an encrypted device token.
+- **Targeted Multi-PC Dispatch**: The client UI allows users to dynamically switch the active target companion from a unified selector, dispatching commands to specific physical machines ("Gaming Rig", "Work Laptop") seamlessly.
+
+### 3. Native Windows ConPTY Terminal Execution
+- **True Pseudo-Console Sessions**: Commands execute inside native Windows ConPTY sessions powered by `Porta.Pty`, capturing interactive ANSI/VT100 escape codes, color streams, and terminal prompts.
+- **Dual-Layer Stream Sanitization**: Strips raw cursor-repositioning escapes and OSC window title codes in both C# and TypeScript before persisting logs to MongoDB or feeding output to model context.
+- **Adaptive Execution Classification**: Fast inspection commands execute synchronously (<3.5s), while heavy workloads (compilations, large downloads) promote smoothly into streaming background tasks (`cmd_chunk`).
+
+### 4. Self-Healing Desktop Application Launching
+- **Shell-Decoupled Execution**: Launches desktop applications and games through the Windows Shell (`explorer.exe`), detaching GUI processes from terminal job objects so windows remain open independently of command sessions.
+- **Two-Stage Candidate Fallback**: When an application path is not found directly, the host agent automatically queries Start Menu and Desktop shortcuts, returning deduplicated candidate paths for automated self-healing.
+
+---
+
+## 🧩 Component Directory
+
+| Component | Technology Stack | Port | Primary Purpose |
 | :--- | :--- | :--- | :--- |
-| **`frontend/`** | Next.js 16, React 19, Tailwind v4, Zustand | `3000` | Orbital Purple cockpit for chat, execution steps, and live streaming terminals. |
-| **`backend/`** | Node.js, Express, TypeScript, Mongoose | `3100` | Gateway, WebSocket router, auth, session persistence, and self-correcting `askAI` loop. |
-| **`Local-BE-v2/`** | C# (.NET 8), ConPTY, P/Invoke, Win32 | `4100` | Native host companion: executes shell commands, inspects desktop screen, and runs system telemetry. |
-| **`nexus_app_v2/`** | React Native, Expo | — | Companion mobile client for remote system monitoring and biometric commands. |
+| **`frontend/`** | Next.js 16, React 19, Tailwind v4, Zustand | `3000` | Real-time web control cockpit: multi-device selector, chat history, live streaming execution logs, and terminal drawer. |
+| **`backend/`** | Node.js, Express, TypeScript, WebSocket (`ws`), Mongoose | `3100` | Gateway router, OOP WebSocket hub, JWT authentication, and autonomous `AskAI` ReAct orchestration loop. |
+| **`Local-BE-v2/`** | C# (.NET 8), ConPTY (`Porta.Pty`), Win32 Shell API | `4100` | Native host companion: elevated background service managing shell processes, screen capture, and file indexing. |
 
 ---
 
-## 🚀 How to Run the Ecosystem
+## 🚀 Getting Started
 
-### 1. Prerequisites
+### Prerequisites
 - **Node.js** >= v20.x
-- **.NET 8 SDK** (for `Local-BE-v2`)
-- **MongoDB** running locally or a MongoDB Atlas URI
-- Windows 10/11 with Administrator privileges
+- **.NET 8 SDK**
+- **MongoDB** (Local instance or MongoDB Atlas connection URI)
+- **Windows 10 / 11** (Administrator privileges recommended for hardware sensors and ConPTY operations)
 
-### 2. Booting Services
+### 1. Environment Configuration
 
-Open 3 separate terminal windows:
+Create a `.env` file in `backend/`:
+```env
+PORT=3100
+MONGO_URI=mongodb://localhost:27017/nexus
+JWT_SECRET=your_jwt_secret_key
+GEMINI_API_KEY=your_gemini_api_key
+```
 
-#### Terminal 1: Cloud Backend
+Create a `.env.local` file in `frontend/`:
+```env
+NEXT_PUBLIC_BACKEND_URL=http://localhost:3100
+NEXT_PUBLIC_WS_URL=ws://localhost:3100
+```
+
+### 2. Running the System
+
+Open three terminal sessions:
+
 ```powershell
-cd d:\Coding\PROJECTS\Next\Nexus_v2\backend
+# Terminal 1: Cloud Backend & WebSocket Gateway
+cd backend
+npm install
 npm run dev
-# Server listening on http://localhost:3100
-```
 
-#### Terminal 2: Local Agent (Must run as Administrator)
-```powershell
-# Open an elevated PowerShell terminal:
-cd d:\Coding\PROJECTS\Next\Nexus_v2\Local-BE-v2
-dotnet watch -- --service
-# Agent connects to ws://localhost:3100 and serves local setup on http://localhost:4100
-```
+# Terminal 2: Native Host Companion (Elevated Administrator)
+cd Local-BE-v2/companion
+dotnet watch --service
 
-#### Terminal 3: Web Frontend
-```powershell
-cd d:\Coding\PROJECTS\Next\Nexus_v2\frontend
+# Terminal 3: Web Dashboard
+cd frontend
+npm install
 npm run dev
-# Dashboard available at http://localhost:3000
 ```
+
+Open `http://localhost:3000` to access the Nexus Dashboard. Connect your host machine by entering the pairing code displayed in the companion terminal.
 
 ---
 
-## ⚡ Core Capabilities & Protocols
-
-### 1. Autonomous Execution & Unwrapped Native PowerShell
-- Nexus translates user requests into native PowerShell cmdlets (`Get-ChildItem`, `Move-Item`, `Start-Process`).
-- `unwrapper` in `Parsers.ts` strips double-wrapped quoting bugs to preserve PowerShell variables (`$downloads`, `$_`).
-- `cleanTerminalOutput` converts ConPTY cursor repositioning codes (`\x1b[6;1H`) into real newlines and strips ANSI noise, keeping terminal logs human-readable.
-
-### 2. Task Lifecycle: Fast vs. Background vs. Daemon
-- **Synchronous (<5s)**: Fast operations (listing files, creating folders) return immediately to the AI.
-- **Background Tasks (>5s)**: Long tasks (compiling, downloading, moving archives) are promoted to background tasks with live streaming chunks (`cmd_chunk`) over WebSockets.
-- **Daemons (`isDaemon: true`)**: Persistent servers (`npm run dev`) start detached with PID tracking and live logs.
-
-### 3. Desktop Screen Capture & Multimodal Vision
-- Captures full-resolution desktop screens via GDI+ into memory in <15ms.
-- Summarizes visual errors/windows with Gemini Vision and sends textual feedback to the reasoning loop.
-- Passes the base64 preview to the frontend while stripping large base64 tokens from subsequent conversation history.
-
----
-
-## 📁 Project Structure
+## 📁 Repository Layout
 
 ```
 Nexus_v2/
-├── backend/                  # Node.js TypeScript API & Orchestrator
-│   ├── AI/                   # askAI loop, CallAI router, instructions, parsers
-│   ├── db/                   # Mongoose schemas (chat, user, session, memory)
-│   ├── routes/               # Express REST routes
-│   └── services/             # WebSocket router, chat history, JWT auth
-├── Local-BE-v2/              # Native C# .NET 8 Host Companion
-│   ├── services/             # ExecuteServices (ConPTY), WebSocketClientService, Search
-│   ├── Models/               # DTOs and command definitions
-│   └── SetupPage/            # Embedded single-file setup dashboard
-├── frontend/                 # Next.js 16 Web Dashboard
-│   ├── app/                  # App router (chat, workbench, dashboard, devices)
-│   ├── app/components/       # ChatUI, AIMsgBox, ExecutionsStep, XTerminal
-│   └── services/             # WebSocket client, HTTP services
-├── README.md                 # Project architecture and setup guide (This file)
-└── TASKS.md                  # Master prioritized roadmap & progress tracker
+├── backend/                       # Node.js TypeScript API & Gateway
+│   ├── AI/                        # AskAI ReAct loop, model router, and tool definitions
+│   │   ├── instructions/          # System prompts, heuristics, and operational constraints
+│   │   │   └── Tools/             # Individual tool definitions (terminal, search, launch_app, etc.)
+│   │   └── Types/                 # TypeScript interfaces for parser outputs and execution events
+│   ├── db/                        # Mongoose schemas (users, sessions, memories)
+│   ├── routes/                    # REST endpoints (auth, chat history, pairing)
+│   └── services/websocket/        # OOP WebSocket architecture (BaseSession, Frontend, LocalBackend)
+├── Local-BE-v2/                   # Native C# .NET 8 Host Companion
+│   ├── companion/                 # Core companion agent project
+│   │   ├── services/              # ExecuteServices (ConPTY), WebSocketClientService, SearchServices
+│   │   └── Models/                # Data transfer objects for RPC commands
+│   ├── SetupPage/                 # Embedded HTML/TSX pairing UI
+│   └── nexus/                     # Packaging and distribution resources
+├── frontend/                      # Next.js 16 Web Dashboard
+│   ├── app/                       # App Router pages (chat, devices, workbench)
+│   │   ├── components/            # UI components (SendMsg, ExecutionsStep, XTerminal)
+│   │   └── store/                 # Zustand stores (useChat, useDevices, useUserCredentials)
+│   └── services/                  # WebSocket listener and HTTP API services
+├── TASKS.md                       # Engineering roadmap & active milestones
+└── README.md                      # System documentation
 ```
 
 ---
 
 ## 📄 License
-MIT © 2026 Nexus Ecosystem
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
