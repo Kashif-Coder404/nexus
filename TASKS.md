@@ -129,4 +129,4 @@
   - If `companion.configUpdatedAt < device.configUpdatedAt`, cloud backend pushes updated `deviceName` over WebSocket without re-signing JWT or resetting token expiration.
   - Companion persists updated name to disk (`%APPDATA%\Nexus\deviceToken.json`) and refreshes local dashboard state instantly.
 
-### 6. The task manager got the tasks in the queue but the too daemon processes can freak out the frontend so we have to solve it too
+### 6. The task manager got the tasks in the queue but the two daemon processes can freak out the frontend so we have to solve it too
