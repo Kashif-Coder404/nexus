@@ -1,8 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-base: #080711;
+  --color-brand-surface: #140d24;
+  --color-brand-border: #4c227b;
+  --color-brand: #a855f7;
+  --color-brand-hover: #c084fc;
+  --color-brand-glow: #d8b4fe;
+}
+
 body {
+  margin: 0;
+  padding: 0;
+  background-color: #080711;
+  color: #ffffff;
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
-  margin: auto;
-  max-width: 38rem;
-  padding: 2rem;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+progress {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+progress::-webkit-progress-bar {
+  background-color: var(--color-brand-border);
+  opacity: 1;
+  border-radius: 9999px;
+}
+
+progress::-webkit-progress-value {
+  background-color: var(--color-brand-glow);
+  border-radius: 9999px;
+}
+
+progress::-moz-progress-bar {
+  background-color: var(--color-brand-glow);
+  border-radius: 9999px;
 }
